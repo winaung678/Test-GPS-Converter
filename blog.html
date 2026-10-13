@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Surveying Articles & Guides - GPS CONVERTER</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .top-navbar { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 15px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
+        .nav-brand { font-size: 20px; font-weight: 900; color: var(--primary); text-decoration: none; }
+        .nav-links { display: flex; align-items: center; gap: 15px; }
+        .nav-links a { text-decoration: none; color: var(--text); font-weight: bold; font-size: 14px; }
+        .blog-list { padding: 20px; }
+        .blog-card { background: var(--card-bg); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); }
+        .blog-card h2 { margin-top: 0; color: var(--primary); font-size: 20px; }
+        .blog-card p { color: var(--label-text); font-size: 14px; line-height: 1.6; }
+        .read-more { display: inline-block; margin-top: 10px; color: #10b981; font-weight: bold; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+    <nav class="top-navbar">
+        <a href="index.html" class="nav-brand">GPS CONVERTER</a>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+        </div>
+    </nav>
+
+    <div class="container-box">
+        <div class="blog-list">
+            <h1 style="text-align: center; color: var(--primary);">Surveying Knowledge Base</h1>
+            <p style="text-align: center; color: var(--label-text); margin-bottom: 30px;">Explore our comprehensive guides on modern land surveying, coordinate systems, and geospatial technologies.</p>
+
+            <div class="blog-card">
+                <h2>Demystifying Local Coordinate Systems: WGS84, SVY21, and MM2000</h2>
+                <p>Why do surveyors use local datums instead of standard GPS coordinates? Learn the mathematics and necessity behind SVY21 and MM2000 projections.</p>
+                <a href="post1.html" class="read-more">Read Full Article &rarr;</a>
+            </div>
+
+            <div class="blog-card">
+                <h2>Achieving Vertical Accuracy: The Role of EGM96 and EGM2008</h2>
+                <p>GPS receivers are notoriously inaccurate for elevation. Discover how geoid models convert ellipsoidal height into true Mean Sea Level (MSL).</p>
+                <a href="post2.html" class="read-more">Read Full Article &rarr;</a>
+            </div>
+
+            <div class="blog-card">
+                <h2>Coordinate Geometry (COGO) in Modern Land Surveying</h2>
+                <p>From the Shoelace formula for area calculation to grid inverse and traverse. Explore the core mathematics that power topographical surveys.</p>
+                <a href="post3.html" class="read-more">Read Full Article &rarr;</a>
+            </div>
+
+            <div class="blog-card">
+                <h2>The Evolution of Site Plans: Viewing DXF on Mobile Devices</h2>
+                <p>Taking CAD to the field used to require heavy equipment. Learn how modern web technologies allow seamless interaction with DXF files on smartphones.</p>
+                <a href="post4.html" class="read-more">Read Full Article &rarr;</a>
+            </div>
+
+            <div class="blog-card">
+                <h2>Best Practices for Using Smartphone GPS in Field Reconnaissance</h2>
+                <p>While RTK provides millimeter accuracy, smartphone GPS is invaluable for reconnaissance. Learn how to maximize smartphone accuracy using averaging and geoids.</p>
+                <a href="post5.html" class="read-more">Read Full Article &rarr;</a>
+            </div>
+        </div>
+
+        <div style="text-align:center; padding: 20px; font-size: 13px; color: var(--label-text);">
+            <a href="privacy.html" style="color: #3b82f6; text-decoration: none; margin: 0 10px;">Privacy Policy</a> |
+            <a href="terms.html" style="color: #3b82f6; text-decoration: none; margin: 0 10px;">Terms of Service</a>
+            <p>&copy; 2026 Win Aung. All Rights Reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

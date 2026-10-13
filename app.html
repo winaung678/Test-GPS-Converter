@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Win Aung - GPS Converter</title>
+    <link rel="stylesheet" href="leaflet.css"/>
+    <script src="leaflet.js"></script>
+    <script src="https://unpkg.com/dxf-parser/dist/dxf-parser.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8322907628238853"
+            crossorigin="anonymous"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('Service Worker Registered'))
+                .catch(err => console.log('Service Worker Error', err));
+            });
+        }
+    </script>
+<script src="https://unpkg.com/dxf-parser/dist/dxf-parser.js"></script>
+    <!-- 🔴 အသစ်ထည့်ရန်: လုံးဝ Error ကင်းသော 3D Triangulation Library -->
+    <script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <!-- 🔴 အသစ်ထည့်ရန်: Camera မှ စာဖတ်ရန် OCR AI Library -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+   <script>
+  // 🔴 ပိုမိုသေချာသော လမ်းကြောင်းလွှဲ Logic (Sub-folder ကော Cache ပါ ကျော်ဖြတ်နိုင်ရန်)
+    // if (window.location.hostname !== "gpsconverter.site" && window.location.hostname !== "localhost") {
+    // လက်ရှိ ဝင်ထားတဲ့ Domain က gpsconverter.site မဟုတ်ရင် (github.io ဖြစ်နေရင်) Custom Domain ဆီ အတင်းလွှဲမည်
+     // window.location.replace("https://gpsconverter.site/");
+    // }
+</script>
+<!-- 🔴 3D Surface Rendering အတွက် Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+
+<body id="master-ui">
+<div class="container-box">
+
+    <!-- Top Controls -->
+    <div class="top-controls">
+        <div class="top-left-tools">
+            <button id="topMenuBtn" class="top-menu-btn hidden" onclick="handleTopMenuClick()">🔙 Menu</button>
+            <button id="globalGpsBtn" class="gps-toggle-btn hidden" onclick="toggleGlobalGPS()">🛰️ GPS: OFF</button>
+        </div>
+        <div style="flex:1;"></div>
+        <div class="right-tools">
+            <button class="top-btn" onclick="document.getElementById('master-ui').classList.toggle('dark-mode')">🌙</button>
+           <button class="top-btn" onclick="window.openAbout()">ℹ️</button>
+        </div>
+    </div>
+
+    <!-- 🏠 MAIN DASHBOARD (App 0) -->
+    <div id="dashboard_view">
+        <div style="text-align:center; margin-bottom: 20px; margin-top: 10px;">
+            <h1 style="margin:0; color:var(--primary); font-size: 22px; font-weight: 900; line-height: 1.3;">SVY21/MM2000<br>GPS CONVERTER</h1>
+            <p style="margin:5px 0 0 0; color:var(--label-text); font-size: 13px; font-weight: bold;">Professional Land Surveying Tool</p>
+        </div>
+
+        <div class="dashboard-grid">
+            <button class="dash-btn full-width" onclick="switchApp(5)">
+                <span class="dash-icon">🌍</span>
+                <div style="text-align:left;">
+                    <span class="dash-text">Global UTM</span>
+                    <span class="dash-subtext" style="display:block;">WGS84 Universal Transverse Mercator</span>
+                </div>
+            </button>
+            <button class="dash-btn" onclick="switchApp(1)">
+                <span class="dash-icon">🇸🇬</span>
+                <span class="dash-text">SVY21</span>
+                <span class="dash-subtext">Coordinate</span>
+            </button>
+            <button class="dash-btn" onclick="switchApp(2)">
+                <span class="dash-icon">🇲🇲</span>
+                <span class="dash-text">MM2000</span>
+                <span class="dash-subtext">Coordinate</span>
+            </button>
+            <button class="dash-btn" onclick="switchApp(3)">
+                <span class="dash-icon">🎯</span>
+                <span class="dash-text">Set Out</span>
+                <span class="dash-subtext">Stakeout & GPS</span>
+            </button>
+            <button class="dash-btn" onclick="switchApp(4)">
+                <span class="dash-icon">🧮</span>
+                <span class="dash-text">COGO</span>
+                <span class="dash-subtext">Area & Utilities</span>
+            </button>
+            <button class="dash-btn full-width" style="background: linear-gradient(135deg, var(--card-bg), #fef08a);" onclick="switchApp(6)">
+                <span class="dash-icon">🗺️</span>
+                <div style="text-align:left;">
+                    <span class="dash-text">Site Plan (DXF)</span>
+                    <span class="dash-subtext" style="display:block;">Load & View AutoCAD DXF Maps</span>
+                </div>
+            </button>
+            <button class="dash-btn full-width" style="background: linear-gradient(135deg, var(--card-bg), #dcfce7);" onclick="switchApp(7)">
+                <span class="dash-icon">📷</span>
+                <div style="text-align:left;">
+                    <span class="dash-text">Camera</span>
+                    <span class="dash-subtext" style="display:block;">Photo with GPS Watermark</span>
+                </div>
+            </button>
+        </div>
+        <div style="text-align: center; margin: 20px 0; min-height: 50px; display: flex; justify-content: center;">
+            <script>
+              atOptions = {
+                'key' : '89b5f2690102055b398f7bc16d32b325',
+                'format' : 'iframe',
+                'height' : 50,
+                'width' : 320,
+                'params' : {}
+              };
+            </script>
+            <script src="https://www.highperformanceformat.com/89b5f2690102055b398f7bc16d32b325/invoke.js"></script>
+        </div>
+        <!-- 🔴 ADD THIS SEO/ARTICLE CONTENT FOR GOOGLE ADSENSE APPROVAL 🔴 -->
+        <div style="padding: 20px; margin-top: 30px; background: var(--card-bg); border-radius: 15px; border: 1px solid var(--input-border); color: var(--text); line-height: 1.6; font-size: 13px;">
+            <h2 style="color: var(--primary); font-size: 16px; margin-top: 0;">Comprehensive Guide to Land Surveying and GPS Conversion</h2>
+            <p>Welcome to the ultimate professional surveying tool designed for modern surveyors and engineers. Our GPS Converter seamlessly bridges the gap between various coordinate systems, specifically targeting the <b>SVY21 (Singapore)</b>, <b>MM2000 (Myanmar)</b>, and standard <b>WGS84 Global UTM</b> datums.</p>
+
+            <h3 style="color: var(--primary); font-size: 14px;">Why Coordinate Conversion is Crucial</h3>
+            <p>In topographical surveying, civil engineering, and construction, accurate geospatial data is the foundation of any project. Raw GPS data relies on the WGS84 ellipsoid. However, local cadastral mapping requires projected coordinate systems like SVY21 or MM2000 to minimize distortion over flat surfaces. This application utilizes complex geodetic mathematical models, including the Transverse Mercator projection and specialized datum shifts, to provide millimeter-level accuracy.</p>
+
+            <h3 style="color: var(--primary); font-size: 14px;">Advanced Features: Geoid Models and MSL</h3>
+            <p>Obtaining accurate Elevation (Z) from a GPS receiver is notoriously difficult because GPS measures height above the ellipsoid, not Mean Sea Level (MSL). Our application integrates the highly respected <b>EGM2008</b> and <b>EGM96 Global Geoid Models</b> directly into your workflow. By calculating the Geoid Undulation (N) in real-time, surveyors can instantly convert raw GPS altitude into highly accurate orthometric height (MSL), eliminating the need for complex post-processing.</p>
+
+            <h3 style="color: var(--primary); font-size: 14px;">Integrated Stakeout and COGO Utilities</h3>
+            <p>Beyond simple conversions, this suite offers practical fieldwork utilities. The <b>Stakeout Navigation</b> system provides visual guidance to pre-defined target coordinates, ensuring precise point layout. Furthermore, the embedded <b>Coordinate Geometry (COGO)</b> tools allow professionals to calculate land area, determine bearings and distances (Inverse), and compute gradient elevations on the fly. Whether you are importing massive CSV point clouds or overlaying AutoCAD DXF site plans, this tool is engineered to enhance your fieldwork efficiency.</p>
+        </div>
+        <!-- 🔴 END OF SEO CONTENT 🔴 -->
+    </div>
+
+    <!-- 🇸🇬 SVY21 UI (App 1) -->
+    <div id="app1_view" class="hidden app-container">
+        <div class="app-card">
+            <div class="card-header">
+                <h3 class="card-title">SVY21 Coordinate</h3>
+                <div id="v2_subtitle" class="card-subtitle">Singapore Datum (Converter Mode)</div>
+            </div>
+            <div class="card-body">
+                <div id="v2_gps_box" class="gps-box hidden">
+                    <div class="gps-row"><span style="font-size:11px;font-weight:bold;color:#10b981;">Tracking Mode ON</span></div>
+                    <div class="gps-row">
+                        <span id="v2_gps_stat" class="gps-status">H.Acc: --</span>
+                    </div>
+                    <div class="gps-row"><span id="v2_dop_info" class="gps-status" style="background:#3b82f6;">PDOP: -- | VDOP: --</span></div>
+                    <div class="z-badge" id="v2_z_val">MSL: --.--- m</div>
+                    <div class="geoid-text" id="v2_raw_alt" style="color:#d97706; font-weight:bold;">Raw GPS Alt: --.--- m</div>
+                    <div class="geoid-text" id="v2_geoid_val">Geoid (N): --.--- m</div>
+                    <div class="bm-flex-container">
+                        <input type="text" inputmode="text" id="v2_pole_val" placeholder="Pole (m)" onchange="applyPole(this.value)" style="border-color:#8b5cf6;">
+                        <input type="text" inputmode="text" id="v2_bm_val" placeholder="BM (m)">
+                        <button style="background:#1e40af;" onclick="setBM('v2')">SET</button>
+                        <button style="background:#64748b;" onclick="resetBM('v2')">RST</button>
+                    </div>
+                </div>
+
+                <div id="v2_calc_ui">
+                    <label class="v2-label">Conversion Mode</label>
+                    <select id="v2_mode" onchange="v2_toggleUI()"><option value="LL2SVY">WGS84 LL → SVY21</option><option value="SVY2LL">SVY21 → WGS84 LL</option></select>
+                    <div id="v2_ll_div">
+                        <label class="v2-label">Latitude (DD / DMS)</label>
+                        <input type="text" inputmode="text" id="v2_lat_dd" class="v2-input" oninput="v2_sync('lat','dd')">
+                        <div class="dms-grid"><input type="text" inputmode="text" id="v2_lat_d" placeholder="D" oninput="v2_sync('lat','dms')"><input type="text" inputmode="text" id="v2_lat_m" placeholder="M" oninput="v2_sync('lat','dms')"><input type="text" inputmode="text" id="v2_lat_s" placeholder="S" oninput="v2_sync('lat','dms')"></div>
+                        <label class="v2-label">Longitude (DD / DMS)</label>
+                        <input type="text" inputmode="text" id="v2_lon_dd" class="v2-input" oninput="v2_sync('lon','dd')">
+                        <div class="dms-grid"><input type="text" inputmode="text" id="v2_lon_d" placeholder="D" oninput="v2_sync('lon','dms')"><input type="text" inputmode="text" id="v2_lon_m" placeholder="M" oninput="v2_sync('lon','dms')"><input type="text" inputmode="text" id="v2_lon_s" placeholder="S" oninput="v2_sync('lon','dms')"></div>
+                    </div>
+                    <div id="v2_ne_div" class="hidden">
+                        <label class="v2-label">Easting (E):</label><input type="text" inputmode="text" id="v2_inp_e" class="v2-input">
+                        <label class="v2-label">Northing (N):</label><input type="text" inputmode="text" id="v2_inp_n" class="v2-input">
+                    </div>
+                    <div class="btn-group"><button class="btn-action" onclick="v2_run()">Convert</button><button class="btn-map" onclick="v2_map()">Map 📍</button><button class="btn-reset" onclick="v2_reset()">Reset</button></div>
+                    <div id="v2_out" class="results-multi"><p style="text-align:center;opacity:0.5;">Results will appear here</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🇲🇲 MM2000 UI (App 2) -->
+    <div id="app2_view" class="hidden app-container">
+        <div class="app-card">
+            <div class="card-header">
+                <h3 class="card-title">MM2000 Coordinate</h3>
+                <div id="m_subtitle" class="card-subtitle">Myanmar Datum (Converter Mode)</div>
+            </div>
+            <div class="card-body">
+                <div id="m_gps_box" class="gps-box hidden">
+                    <div class="gps-row"><span style="font-size:11px;font-weight:bold;color:#10b981;">Tracking Mode ON</span></div>
+                    <div class="gps-row">
+                        <span id="m_gps_stat" class="gps-status">H.Acc: --</span>
+                    </div>
+                    <div class="gps-row"><span id="m_dop_info" class="gps-status" style="background:#3b82f6;">PDOP: -- | VDOP: --</span></div>
+                    <div class="z-badge" id="m_z_val">MSL: --.--- m</div>
+                    <div class="geoid-text" id="m_raw_alt" style="color:#d97706; font-weight:bold;">Raw GPS Alt: --.--- m</div>
+                    <div class="geoid-text" id="m_geoid_val">Geoid (N): --.--- m</div>
+                    <div class="bm-flex-container">
+                        <input type="text" inputmode="text" id="m_pole_val" placeholder="Pole (m)" onchange="applyPole(this.value)" style="border-color:#8b5cf6;">
+                        <input type="text" inputmode="text" id="m_bm_val" placeholder="BM (m)">
+                        <button style="background:#1e40af;" onclick="setBM('m')">SET</button>
+                        <button style="background:#64748b;" onclick="resetBM('m')">RST</button>
+                    </div>
+                </div>
+
+                <div id="m_calc_ui">
+                    <label class="v2-label">Conversion Mode</label>
+                    <select id="m_mode" onchange="m_toggleUI()">
+                        <option value="W_LL2NE">WGS84 LL → WGS84 NE</option><option value="W_NE2LL">WGS84 NE → WGS84 LL</option>
+                        <option value="W2M_LL">WGS84 LL → MM2000</option><option value="W2M_NE">WGS84 NE → MM2000</option>
+                        <option value="M2W_LL">MM2000 LL → WGS84</option><option value="M2W_NE">MM2000 NE → WGS84</option>
+                    </select>
+                    <div id="m_ll_div">
+                        <label class="v2-label">Latitude (DD / DMS)</label><input type="text" inputmode="text" id="m_lat_dd" class="v2-input" oninput="m_sync('lat','dd')">
+                        <div class="dms-grid"><input type="text" inputmode="text" id="m_lat_d" placeholder="D" oninput="m_sync('lat','dms')"><input type="text" inputmode="text" id="m_lat_m" placeholder="M" oninput="m_sync('lat','dms')"><input type="text" inputmode="text" id="m_lat_s" placeholder="S" oninput="m_sync('lat','dms')"></div>
+                        <label class="v2-label">Longitude (DD / DMS)</label><input type="text" inputmode="text" id="m_lon_dd" class="v2-input" oninput="m_sync('lon','dd')">
+                        <div class="dms-grid"><input type="text" inputmode="text" id="m_lon_d" placeholder="D" oninput="m_sync('lon','dms')"><input type="text" inputmode="text" id="m_lon_m" placeholder="M" oninput="m_sync('lon','dms')"><input type="text" inputmode="text" id="m_lon_s" placeholder="S" oninput="m_sync('lon','dms')"></div>
+                    </div>
+                    <div id="m_ne_div" class="hidden">
+                        <label class="v2-label">Easting (E)</label><input type="text" inputmode="text" id="m_inp_e" class="v2-input">
+                        <label class="v2-label">Northing (N)</label><input type="text" inputmode="text" id="m_inp_n" class="v2-input">
+                    </div>
+                    <label class="v2-label">UTM Zone (Auto-detected)</label>
+                    <select id="m_zone"><option value="46">Zone 46 (93° E)</option><option value="47" selected>Zone 47 (99° E)</option></select>
+                    <div class="btn-group"><button class="btn-action" onclick="m_run()">Convert</button><button class="btn-map" onclick="m_map()">Map 📍</button><button class="btn-reset" onclick="m_reset()">Reset</button></div>
+                    <div id="m_out" class="results-multi"><p style="text-align:center;opacity:0.5;">Results will appear here</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌍 GLOBAL UTM UI (App 5) -->
+    <div id="app5_view" class="hidden app-container">
+        <div class="app-card">
+            <div class="card-header" style="background:#0f766e;">
+                <h3 class="card-title">Global UTM</h3>
+                <div id="g_subtitle" class="card-subtitle">Universal Transverse Mercator (Converter Mode)</div>
+            </div>
+            <div class="card-body">
+                <div id="g_gps_box" class="gps-box hidden">
+                    <div class="gps-row"><span style="font-size:11px;font-weight:bold;color:#10b981;">Tracking Mode ON</span></div>
+                    <div class="gps-row">
+                        <span id="g_gps_stat" class="gps-status">H.Acc: --</span>
+                    </div>
+                    <div class="gps-row"><span id="g_dop_info" class="gps-status" style="background:#3b82f6;">PDOP: -- | VDOP: --</span></div>
+                    <div class="z-badge" id="g_z_val" style="color:#0f766e; border-color:rgba(15,118,110,0.3); background:rgba(15,118,110,0.1);">MSL: --.--- m</div>
+                    <div class="geoid-text" id="g_raw_alt" style="color:#d97706; font-weight:bold;">Raw GPS Alt: --.--- m</div>
+                    <div class="geoid-text" id="g_geoid_val">Geoid (N): --.--- m</div>
+                    <div class="bm-flex-container">
+                        <input type="text" inputmode="text" id="g_pole_val" placeholder="Pole (m)" onchange="applyPole(this.value)" style="border-color:#8b5cf6;">
+                        <input type="text" inputmode="text" id="g_bm_val" placeholder="BM (m)">
+                        <button style="background:#1e40af;" onclick="setBM('g')">SET</button>
+                        <button style="background:#64748b;" onclick="resetBM('g')">RST</button>
+                    </div>
+                </div>
+
+                <div id="g_calc_ui">
+                    <label class="v2-label">Conversion Mode</label>
+                    <select id="g_mode" onchange="g_toggleUI()">
+                        <option value="LL2UTM">WGS84 LL → UTM (N, E)</option>
+                        <option value="UTM2LL">UTM (N, E) → WGS84 LL</option>
+                    </select>
+                    <div id="g_ll_div">
+                        <label class="v2-label">Latitude (DD / DMS)</label>
+                        <input type="text" inputmode="text" id="g_lat_dd" class="v2-input" oninput="g_sync('lat','dd')">
+                        <div class="dms-grid"><input type="text" inputmode="text" id="g_lat_d" placeholder="D" oninput="g_sync('lat','dms')"><input type="text" inputmode="text" id="g_lat_m" placeholder="M" oninput="g_sync('lat','dms')"><input type="text" inputmode="text" id="g_lat_s" placeholder="S" oninput="g_sync('lat','dms')"></div>
+                        <label class="v2-label">Longitude (DD / DMS)</label>
+                        <input type="text" inputmode="text" id="g_lon_dd" class="v2-input" oninput="g_sync('lon','dd')">
+                        <div class="dms-grid"><input type="text" inputmode="text" id="g_lon_d" placeholder="D" oninput="g_sync('lon','dms')"><input type="text" inputmode="text" id="g_lon_m" placeholder="M" oninput="g_sync('lon','dms')"><input type="text" inputmode="text" id="g_lon_s" placeholder="S" oninput="g_sync('lon','dms')"></div>
+                    </div>
+                    <div id="g_ne_div" class="hidden">
+                        <label class="v2-label">Easting (E)</label><input type="text" inputmode="text" id="g_inp_e" class="v2-input">
+                        <label class="v2-label">Northing (N)</label><input type="text" inputmode="text" id="g_inp_n" class="v2-input">
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1;">
+                            <label class="v2-label">UTM Zone (1-60)</label>
+                            <input type="text" inputmode="text" id="g_zone" class="v2-input" placeholder="e.g. 47">
+                        </div>
+                        <div style="flex:1;">
+                            <label class="v2-label">Hemisphere</label>
+                            <select id="g_hemi" class="v2-input"><option value="N">North (N)</option><option value="S">South (S)</option></select>
+                        </div>
+                    </div>
+                    <div class="btn-group"><button class="btn-action" style="background:#0f766e;" onclick="g_run()">Convert</button><button class="btn-map" onclick="g_map()">Map 📍</button><button class="btn-reset" onclick="g_reset()">Reset</button></div>
+                    <div id="g_out" class="results-multi" style="border-left-color:#0f766e;"><p style="text-align:center;opacity:0.5;">Results will appear here</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🎯 SET OUT (App 3) -->
+    <div id="app3_view" class="hidden app-container">
+        <div class="app-card">
+            <div class="card-header">
+                <h3 class="card-title">Stakeout / Set Out</h3>
+                <div class="card-subtitle">GPS Navigation</div>
+            </div>
+            <div class="card-body" style="padding: 10px;">
+                <div style="margin-bottom:10px;">
+                    <label class="v2-label" style="margin:0;">Select Data Format:</label>
+                </div>
+                <select id="so_datum" class="v2-input" style="margin-top:0;" onchange="toggleSoDatum()">
+                    <option value="SVY21">🇸🇬 SVY21 (Local N, E)</option>
+                    <option value="MM47">🇲🇲 MM2000 (Zone 47)</option>
+                    <option value="MM46">🇲🇲 MM2000 (Zone 46)</option>
+                    <option value="WGS_UTM47">🌍 WGS84 UTM (Zone 47)</option>
+                    <option value="WGS_UTM46">🌍 WGS84 UTM (Zone 46)</option>
+                    <option value="GLOBAL_UTM">🌍 Global UTM (Custom Zone)</option>
+                    <option value="WGS_LL">🌐 WGS84 (Lat, Lon)</option>
+                </select>
+                <div id="so_custom_utm" style="display:none; gap:5px; margin-top:5px;">
+                    <input type="text" inputmode="text" id="so_custom_zone" class="v2-input" placeholder="Zone (1-60)" style="flex:1; margin-top:0;">
+                    <select id="so_custom_hemi" class="v2-input" style="flex:1; margin-top:0;"><option value="N">North (N)</option><option value="S">South (S)</option></select>
+                </div>
+
+                <div class="btn-group" style="margin-top:10px; flex-wrap:wrap; gap:5px;">
+                    <button class="btn-action" style="background:#3b82f6; flex:1;" onclick="document.getElementById('so_csv').click()">📂 CSV</button>
+                    <button class="btn-action" style="background:#ca8a04; flex:1;" onclick="importTopoToSetOut()">⬇️ Topo</button>
+                    <button class="btn-action" style="background:#10b981; flex:1;" onclick="exportPointsToKml()">💾 KML</button>
+                    <button class="btn-action" style="background:#8b5cf6; flex:1;" onclick="document.getElementById('so_manual').classList.toggle('hidden')">✍️ Man</button>
+                    <button class="btn-action" style="background:#ef4444; flex:1;" onclick="clearSetOutPoints()">🗑️ Clear</button>
+                </div>
+                <input type="file" id="so_csv" accept=".csv" style="display:none;" onchange="loadSetOutCSV(event)">
+
+                <div id="so_manual" class="hidden" style="background:var(--res-bg);padding:10px;border-radius:10px;margin-top:10px;border:1px solid var(--input-border);">
+                    <div style="display:flex;gap:5px;">
+                        <input type="text" id="so_m_p" class="v2-input" placeholder="Point Name" style="flex:1;">
+                        <button class="btn-action" style="flex:0.5;padding:10px;background:#10b981;" onclick="addManualSetOut()">ADD</button>
+                    </div>
+                    <div style="display:flex;gap:5px;">
+                        <input type="text" inputmode="text" id="so_m_n" class="v2-input" placeholder="N / Lat">
+                        <input type="text" inputmode="text" id="so_m_e" class="v2-input" placeholder="E / Lon">
+                    </div>
+                </div>
+                <div style="display:flex; gap:5px; align-items:flex-end; margin-top:10px;">
+                    <div style="flex:1;">
+                        <label class="v2-label">Target Point:</label>
+                        <select id="so_target_list" class="v2-input" onchange="selectTarget()"><option value="">-- No points loaded --</option></select>
+                    </div>
+                    <button class="btn-action" style="background:#ef4444; flex:0.4; padding:12px; height:max-content;" onclick="stopNavigation()">🛑 Stop</button>
+                </div>
+                <div class="setout-panel" style="margin-top:10px;">
+                    <div style="font-size:14px;font-weight:bold;color:var(--label-text);" id="so_guidance_text">Waiting for Target...</div>
+                    <div class="dist-text" id="so_dist">0.000 m</div>
+                    <div class="arrow-box"><div class="arrow-icon" id="so_arrow">⬆</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🧮 COGO (App 4) -->
+    <div id="app4_view" class="hidden app-container">
+
+        <!-- 🔴 COGO ပင်မ မျက်နှာပြင် -->
+        <div id="cogo_main_menu" class="app-card">
+            <div class="card-header" style="background:#8b5cf6;">
+                <h3 class="card-title">COGO & Tools</h3>
+                <div class="card-subtitle">Coordinate Geometry Utilities</div>
+            </div>
+            <div class="card-body" style="padding: 15px;">
+                <div style="display:flex; flex-direction: column; gap:12px;">
+                    <button class="btn-action" style="background:#10b981; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);" onclick="openCogoTool('area')">
+                        <span style="font-size:24px;">📐</span> <span>Area Calculator</span>
+                    </button>
+
+                    <button class="btn-action" style="background:#8b5cf6; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);" onclick="openCogoTool('inv')">
+                        <span style="font-size:24px;">🧭</span> <span>Bearing & Distance</span>
+                    </button>
+
+                    <button class="btn-action" style="background:#b91c1c; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);" onclick="openCogoTool('grad')">
+                        <span style="font-size:24px;">📈</span> <span>Gradient / Elevation</span>
+                    </button>
+
+                    <!-- 🔴 Traverse Adjustment ခလုတ်အသစ် 🔴 -->
+                    <button class="btn-action" style="background:#0ea5e9; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);" onclick="openCogoTool('trv')">
+                        <span style="font-size:24px;">🔗</span> <span>Traverse Adjustment</span>
+                    </button>
+
+<button class="btn-action" style="background:#f59e0b; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);" onclick="openCogoTool('ecc')">
+        <span style="font-size:24px;">🏗️</span> <span>Pile Eccentricity</span>
+    </button>
+
+<button class="btn-action" style="background:#2563eb; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);" onclick="openCogoTool('topo')">
+        <span style="font-size:24px;">⛰️</span> <span>Topo Surface & Contour</span>
+    </button>
+
+<button class="btn-action" style="background:#059669; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1); " onclick="openCogoTool('vol')">
+        <span style="font-size:24px;">📦</span> <span>Earthwork / Volume</span>
+    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔴 Tool တစ်ခုစီ ပွင့်လာမည့် နေရာ -->
+        <div id="cogo_tool_container" class="hidden">
+            <div style="display:flex; align-items:center; justify-content:center; margin-bottom:10px;">
+                <div id="cogo_tool_title" style="font-weight:bold; font-size:16px; color:var(--text); text-align:center;">Tool Name</div>
+            </div>
+            <div class="app-card">
+                <div class="card-body" style="padding: 12px;">
+
+                    <!-- ========================================== -->
+                    <!-- 1. AREA CALCULATOR TOOL -->
+                    <!-- ========================================== -->
+                    <div id="cogo_area_tool" class="hidden">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                            <label class="v2-label" style="margin:0; font-weight:bold; color:#10b981;">1. Select Datum for Area</label>
+                        </div>
+                        <select id="cogo_datum" class="v2-input" style="margin-top:0;" onchange="toggleCogoDatum()">
+                            <option value="SVY21">🇸🇬 SVY21 (Local N, E)</option>
+                            <option value="MM47">🇲🇲 MM2000 (Zone 47)</option>
+                            <option value="MM46">🇲🇲 MM2000 (Zone 46)</option>
+                            <option value="WGS_UTM47">🌍 WGS84 UTM (Zone 47)</option>
+                            <option value="WGS_UTM46">🌍 WGS84 UTM (Zone 46)</option>
+                            <option value="GLOBAL_UTM">🌍 Global UTM (Custom Zone)</option>
+                        </select>
+                        <div id="cogo_custom_utm" style="display:none; gap:5px; margin-top:5px;">
+                            <input type="text" inputmode="text" id="cogo_custom_zone" class="v2-input" placeholder="Zone (1-60)" style="flex:1; margin-top:0;">
+                            <select id="cogo_custom_hemi" class="v2-input" style="flex:1; margin-top:0;"><option value="N">North (N)</option><option value="S">South (S)</option></select>
+                        </div>
+
+                        <div class="btn-group" style="margin-top:15px; margin-bottom:15px; flex-wrap:wrap; gap:5px;">
+                            <button class="btn-action" style="background:#3b82f6; flex:1;" onclick="document.getElementById('cogo_csv').click()">📂 CSV</button>
+                            <button class="btn-action" style="background:#ca8a04; flex:1;" onclick="importTopoToSetOut()">⬇️ Topo</button>
+                            <button class="btn-action" style="background:#10b981; flex:1;" onclick="exportPointsToKml()">💾 KML</button>
+                            <button class="btn-action" style="background:#ef4444; flex:1;" onclick="clearSetOutPoints()">🗑️ Clear</button>
+                        </div>
+                        <input type="file" id="cogo_csv" accept=".csv" style="display:none;" onchange="loadSetOutCSV(event)">
+
+                        <div style="border-top:1px dashed var(--input-border); margin-top:15px; padding-top:15px;">
+                            <div style="font-size:12px; color:var(--label-text); margin-bottom:8px; font-weight:bold;">2. Select Points from Map or List (Min: 3)</div>
+                            <div id="area_point_list" class="area-point-list"><p style="text-align:center; opacity:0.5; font-size:12px; margin: 10px 0;">No Set Out points available. Load CSV first.</p></div>
+                            <div id="area_selected_order" style="margin-top:8px; font-size:12px; line-height:1.5; font-weight:bold; color:#1e40af; word-wrap: break-word; background: #f1f5f9; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; max-height: 48px; overflow-y: auto;">
+    Selected: <span id="area_order_text" style="color:#ef4444;">None</span>
+</div>
+                            <div style="display:flex; gap:5px; margin-top:10px;">
+                                <button class="btn-action" style="flex:1; padding:12px; font-size:13px; background:#10b981;" onclick="calculateAreaFromSelection()">📊 Calculate Area</button>
+                                <button class="btn-action" style="flex:0.5; padding:12px; font-size:13px; background:#ef4444;" onclick="clearAreaCalc()">🛑 Stop</button>
+                            </div>
+                            <div id="area_result_box" class="hidden" style="margin-top:10px; background:rgba(16, 185, 129, 0.1); border:1px solid #10b981; padding:10px; border-radius:8px;">
+                                <div style="font-size:13px; font-weight:bold; color:#059669; text-align:center; margin-bottom:8px;">✅ Area Results</div>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; font-size:12px; font-weight:bold; color:var(--text);">
+                                    <div class="area-val">Sq.M: <br><span id="res_sqm" style="color:#1e40af; font-size:14px;">0.000</span></div>
+                                    <div class="area-val">Sq.Ft: <br><span id="res_sqft" style="color:#1e40af; font-size:14px;">0.000</span></div>
+                                    <div class="area-val">Acres: <br><span id="res_acre" style="color:#d97706; font-size:14px;">0.000</span></div>
+                                    <div class="area-val">Hectares: <br><span id="res_hectare" style="color:#d97706; font-size:14px;">0.000</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 2. BEARING & DISTANCE TOOL -->
+                    <!-- ========================================== -->
+                    <div id="cogo_inv_tool" class="hidden">
+                        <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+                            <button class="top-btn" onclick="swapInversePoints()" style="padding:5px 10px; font-size:11px; background:#e2e8f0;">🔄 Swap A-B</button>
+                        </div>
+
+                        <label class="v2-label" style="margin-top:0; color:#1e40af;">Station Point (A)</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" inputmode="text" id="inv_a_n" class="v2-input" placeholder="Northing (N)">
+                            <input type="text" inputmode="text" id="inv_a_e" class="v2-input" placeholder="Easting (E)">
+                        </div>
+
+                        <label class="v2-label" style="color:#b91c1c;">Target Point (B)</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" inputmode="text" id="inv_b_n" class="v2-input" placeholder="Northing (N)">
+                            <input type="text" inputmode="text" id="inv_b_e" class="v2-input" placeholder="Easting (E)">
+                        </div>
+
+                        <div style="display:flex; gap:5px; margin-top:15px;">
+                            <button class="btn-action" style="flex:1; padding:12px; font-size:12px; background:#8b5cf6;" onclick="calcInverse()">↓ Inverse (To Polar)</button>
+                            <button class="btn-action" style="flex:1; padding:12px; font-size:12px; background:#f59e0b;" onclick="calcTraverse()">↑ Traverse (To Coord)</button>
+                        </div>
+
+                        <div style="margin-top:15px; border-top:1px dashed var(--input-border); padding-top:12px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label class="v2-label" style="margin-top:0; color:#059669;">Polar Data (Distance & Bearing)</label>
+                                <button class="top-btn" id="btn_brg_mode" onclick="toggleBearingMode()" style="padding:4px 8px; font-size:11px; background:#e2e8f0;">Mode: Decimal</button>
+                            </div>
+
+                            <div style="display:flex; gap:5px; margin-top:5px;">
+                                <div style="flex:1;">
+                                    <input type="text" inputmode="text" id="inv_dist" class="v2-input" placeholder="Distance (m)">
+                                </div>
+                                <div style="flex:1;" id="inv_brg_dec_div">
+                                    <input type="text" inputmode="text" id="inv_brg_dec" class="v2-input" placeholder="Bearing (DD.dd)">
+                                </div>
+                                <div style="flex:1; display:none;" id="inv_brg_dms_div">
+                                    <div class="dms-grid" style="margin-top:0;">
+                                        <input type="text" inputmode="text" id="inv_brg_d" placeholder="D">
+                                        <input type="text" inputmode="text" id="inv_brg_m" placeholder="M">
+                                        <input type="text" inputmode="text" id="inv_brg_s" placeholder="S">
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="inv_result_dms" style="font-size:13px; font-weight:bold; color:#1e40af; text-align:center; margin-top:8px; padding:5px; background:rgba(59,130,246,0.1); border-radius:6px; border:1px solid rgba(59,130,246,0.3); display:none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- 3. GRADIENT CALCULATOR TOOL -->
+                    <!-- ========================================== -->
+                    <div id="cogo_grad_tool" class="hidden">
+                        <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+                            <button class="top-btn" onclick="clearGradient()" style="padding:5px 10px; font-size:11px; background:#fee2e2; color:#b91c1c; border-color:#fca5a5;">🗑️ Clear</button>
+                        </div>
+                        <div style="display:flex; gap:5px;">
+                            <div style="flex:1;"><label class="v2-label" style="margin-top:0;">Distance (m)</label><input type="text" inputmode="text" id="grad_dist" class="v2-input"></div>
+                            <div style="flex:1;"><label class="v2-label" style="margin-top:0;">Start Z (Z1)</label><input type="text" inputmode="text" id="grad_z1" class="v2-input"></div>
+                        </div>
+                        <div style="display:flex; gap:5px; margin-top:8px;">
+                            <div style="flex:1;"><label class="v2-label" style="margin-top:0; color:#1e40af;">End Z (Z2)</label><input type="text" inputmode="text" id="grad_z2" class="v2-input" style="border-color:#1e40af;"></div>
+                            <div style="flex:1;"><label class="v2-label" style="margin-top:0; color:#b91c1c;">Gradient (% or 1:N)</label><input type="text" inputmode="text" id="grad_pct" class="v2-input" placeholder="e.g. 2.5 or 1:-40" style="border-color:#b91c1c;"></div>
+                        </div>
+                        <div style="display:flex; gap:5px; margin-top:15px;">
+                            <button class="btn-action" style="flex:1; padding:12px; font-size:12px; background:#b91c1c;" onclick="calcGradientFromZ()">Calc % Gradient</button>
+                            <button class="btn-action" style="flex:1; padding:12px; font-size:12px; background:#1e40af;" onclick="calcZ2FromGradient()">Calc End Z (Z2)</button>
+                        </div>
+                        <div id="grad_result" style="font-size:13px; font-weight:bold; color:#059669; text-align:center; margin-top:12px; padding:10px; background:rgba(16,185,129,0.1); border-radius:8px; border:1px solid rgba(16,185,129,0.3); display:none;"></div>
+                    </div>
+                 </div>
+
+                   <!-- ========================================== -->
+<!-- 4. TRAVERSE ADJUSTMENT TOOL -->
+<!-- ========================================== -->
+<div id="cogo_trv_tool" class="hidden">
+    
+    <label class="v2-label" style="margin-top:0; color:#1e40af;">1. Traverse Type</label>
+    <div style="display:flex; gap:10px; align-items:flex-start;">
+        <select id="trv_type" class="v2-input" style="flex:1;" onchange="if(typeof toggleTrvType === 'function') toggleTrvType()">
+            <option value="C">Closed Traverse (Same Start/End Control)</option>
+            <option value="O">Open Traverse (Different Start/End Control)</option>
+        </select>
+        <div id="trv_diagram" style="width: 50px; height: 50px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; display:flex; align-items:center; justify-content:center;"></div>
+    </div>
+
+    <div style="margin-top:10px; padding:10px; background:#f1f5f9; border-radius:8px; border:1px solid #cbd5e1;">
+        <label class="v2-label" style="margin-top:0; color:#059669;">Control Point (Start)</label>
+        <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <input type="text" id="trv_p0" class="v2-input" placeholder="Name" style="flex:1.2; font-weight:bold; color:#b91c1c;">
+            <input type="text" id="trv_n0" class="v2-input" placeholder="N" style="flex:2;">
+            <input type="text" id="trv_e0" class="v2-input" placeholder="E" style="flex:2;">
+            <input type="text" id="trv_z0" class="v2-input" placeholder="Z" style="flex:1;">
+        </div>
+        
+        <div id="trv_end_ctrl" style="display:none;">
+            <label class="v2-label" style="color:#b91c1c;">Control Point (End)</label>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="trv_p_last" class="v2-input" placeholder="Name" style="flex:1.2; font-weight:bold; color:#10b981;">
+                <input type="text" id="trv_n_last" class="v2-input" placeholder="N" style="flex:2;">
+                <input type="text" id="trv_e_last" class="v2-input" placeholder="E" style="flex:2;">
+                <input type="text" id="trv_z_last" class="v2-input" placeholder="Z" style="flex:1;">
+            </div>
+        </div>
+    </div>
+
+    <label class="v2-label" style="margin-top:15px; color:#1e40af;">2. Observed Points (Data)</label>
+    
+    <div style="background:var(--res-bg); padding:10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px;">
+        <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <input type="text" id="trv_m_p" class="v2-input" placeholder="Pt (P)" style="flex:1;">
+            <input type="text" id="trv_m_n" class="v2-input" placeholder="N" style="flex:1.5;">
+            <input type="text" id="trv_m_e" class="v2-input" placeholder="E" style="flex:1.5;">
+        </div>
+        <div style="display:flex; gap:5px;">
+            <input type="text" id="trv_m_z" class="v2-input" placeholder="Z" style="flex:1;">
+            <button class="btn-action" style="flex:1; padding:8px; font-size:12px; background:#10b981; margin-top:0;" onclick="if(typeof addManualTrvPoint === 'function') addManualTrvPoint()">➕ ADD POINT</button>
+        </div>
+    </div>
+
+    <div class="btn-group" style="margin-top:5px; margin-bottom:10px;">
+        <button class="btn-action" style="background:#3b82f6; flex:1;" onclick="document.getElementById('trv_csv').click()">📂 Load CSV</button>
+        <button class="btn-action" style="background:#ef4444; flex:0.5;" onclick="if(typeof clearTrvData === 'function') clearTrvData()">🗑️ Clear</button>
+    </div>
+    <input type="file" id="trv_csv" accept=".csv" style="display:none;" onchange="if(typeof loadTrvCSV === 'function') loadTrvCSV(event)">
+    
+    <div id="trv_point_list" style="max-height: 120px; overflow-y: auto; font-size:11px; background:#fff; border:1px solid #ccc; padding:5px; border-radius:5px; margin-bottom:10px;">
+        <div style="text-align:center; color:#94a3b8; margin-top:10px;">No points added yet.</div>
+    </div>
+    <div id="trv_data_status" style="font-size:12px; font-weight:bold; color:#d97706; text-align:center; margin-bottom:10px;">Total: 0 points</div>
+
+    <button class="btn-action" style="width:100%; background:#10b981; padding:15px; font-size:16px;" onclick="if(typeof calculateTraverse === 'function') calculateTraverse()">⚙️ Calculate Adjustment</button>
+
+    <div id="trv_result_box" class="hidden" style="margin-top:15px; padding-top:15px; border-top:2px dashed #cbd5e1;">
+        
+        <div style="background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:5px; margin-bottom:10px; overflow:hidden;">
+            <div style="font-size:11px; font-weight:bold; text-align:center; color:#64748b; margin-bottom:5px;">Traverse Plot</div>
+            <canvas id="trv_canvas" width="300" height="300" style="width:100%; max-width:400px; height:auto; display:block; margin:0 auto; background:#f8fafc; border-radius:5px;"></canvas>
+        </div>
+
+        <div id="trv_summary" style="background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; padding:10px; font-size:12px; line-height: 1.6; margin-bottom:10px; color: var(--text);">
+        </div>
+        
+        <div style="display:flex; gap:5px;">
+            <button class="btn-action" style="flex:1; background:#0ea5e9; padding:12px; font-size:12px;" onclick="if(typeof exportTrvCSV === 'function') exportTrvCSV('PNEZD')">💾 Export Adjusted (PNEZD)</button>
+            <button class="btn-action" style="flex:1; background:#8b5cf6; padding:12px; font-size:12px;" onclick="if(typeof exportTrvCSV === 'function') exportTrvCSV('REPORT')">📄 Export Full Report</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- 5. PILE ECCENTRICITY TOOL (MANUAL INPUT) -->
+<!-- ========================================== -->
+<div id="cogo_ecc_tool" class="hidden">
+   <!-- Design Data -->
+    <div style="background:#f1f5f9; padding:10px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:10px;">
+        <label class="v2-label" style="margin-top:0; color:#1e40af; font-weight:bold;">1. Design Center (Target)</label>
+        <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <!-- 🔴 Flex အချိုးကို ပြင်ထားပါသည် (ဘောင်မကျော်အောင်) -->
+            <input type="text" id="ecc_pile_no" class="v2-input" placeholder="Pile No" style="flex:1.5; font-weight:bold; color:#1e40af; margin:0;">
+            <input type="text" id="ecc_d_dia" class="v2-input" placeholder="Dia(mm)" style="flex:1; margin:0;">
+        </div>
+        <div style="display:flex; gap:5px;">
+            <input type="text" inputmode="text" id="ecc_d_n" class="v2-input" placeholder="Design N">
+            <input type="text" inputmode="text" id="ecc_d_e" class="v2-input" placeholder="Design E">
+        </div>
+    </div>
+
+    <!-- As-built Data -->
+    <label class="v2-label" style="color:#b91c1c; font-weight:bold;">2. Actual As-built Data</label>
+    
+    <!-- 🔴 CSV Upload ခလုတ် အသစ် -->
+    <div style="display:flex; gap:5px; margin-bottom:10px;">
+        <select id="ecc_method" class="v2-input" style="flex:2; margin:0;" onchange="toggleEccMethod()">
+            <option value="direct">Direct Center (1 Point)</option>
+            <option value="3points">Casing Edge (3 Points)</option>
+        </select>
+        <input type="file" id="ecc_csv_file" accept=".csv" style="display:none;" onchange="loadEccCSV(event)">
+        <button class="btn-action" style="background:#3b82f6; flex:1; margin:0; padding:10px; font-size:13px;" onclick="document.getElementById('ecc_csv_file').click()">📂 Load CSV</button>
+    </div>
+
+    <!-- Direct Method -->
+    <div id="ecc_direct_div">
+        <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <input type="text" inputmode="text" id="ecc_a_n" class="v2-input" placeholder="Actual N">
+            <input type="text" inputmode="text" id="ecc_a_e" class="v2-input" placeholder="Actual E">
+        </div>
+    </div>
+
+    <!-- 3 Points Method -->
+    <div id="ecc_3points_div" class="hidden">
+        <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <input type="text" inputmode="text" id="ecc_p1_n" class="v2-input" placeholder="Pt 1 N">
+            <input type="text" inputmode="text" id="ecc_p1_e" class="v2-input" placeholder="Pt 1 E">
+        </div>
+        <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <input type="text" inputmode="text" id="ecc_p2_n" class="v2-input" placeholder="Pt 2 N">
+            <input type="text" inputmode="text" id="ecc_p2_e" class="v2-input" placeholder="Pt 2 E">
+        </div>
+        <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <input type="text" inputmode="text" id="ecc_p3_n" class="v2-input" placeholder="Pt 3 N">
+            <input type="text" inputmode="text" id="ecc_p3_e" class="v2-input" placeholder="Pt 3 E">
+        </div>
+        <div id="ecc_calc_center_res" style="font-size:12px; color:#059669; text-align:center; font-weight:bold; margin-bottom:5px;"></div>
+    </div>
+
+    <!-- Calculate Button -->
+    <button class="btn-action" style="background:#f59e0b; width:100%; padding:15px; font-size:16px; margin-top:5px;" onclick="calcPileEccentricity()">⚙️ Calculate Eccentricity</button>
+
+    <!-- Results & Add to Report Box -->
+    <div id="ecc_result_box" class="hidden" style="margin-top:15px; border-top:2px dashed #cbd5e1; padding-top:15px;">
+        <div id="ecc_summary" style="background:rgba(245,158,11,0.1); border:1px solid #f59e0b; border-radius:8px; padding:10px; font-size:14px; line-height: 1.6; color: var(--text);"></div>
+        <button class="btn-action" style="background:#3b82f6; width:100%; padding:12px; font-size:14px; margin-top:10px;" onclick="addEccToRecord()">➕ Add Point to Report</button>
+    </div>
+
+    <!-- Saved Records List -->
+    <div id="ecc_records_panel" class="hidden" style="margin-top:20px; border-top:2px solid #10b981; padding-top:15px;">
+        <div style="font-size:14px; font-weight:bold; color:#10b981; text-align:center; margin-bottom:10px;">📋 Points Ready for Report (<span id="ecc_record_count">0</span>)</div>
+        
+        <div id="ecc_record_list" style="max-height:150px; overflow-y:auto; background:var(--res-bg); border:1px solid var(--input-border); border-radius:8px; padding:5px; margin-bottom:10px;"></div>
+
+        <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <button class="btn-action" style="background:#10b981; flex:1; padding:12px; font-size:13px;" onclick="exportEccExcel()">📄 Export Excel</button>
+            <button class="btn-action" style="background:#ca8a04; flex:1; padding:12px; font-size:13px;" onclick="exportEccDXF()">🗺️ Export DXF</button>
+        </div>
+        <button class="btn-action" style="background:#ef4444; width:100%; padding:12px; font-size:13px;" onclick="clearAllEccData()">🗑️ Clear All Data</button>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- 6. TOPO SURFACE & CONTOUR TOOL -->
+<!-- ========================================== -->
+<div id="cogo_topo_tool" class="hidden">
+<div id="topo_controls_panel">
+    
+    <!-- 1. Coordinate System Selection -->
+    <label class="v2-label" style="margin-top:0; color:#1e40af; font-weight:bold;">1. Data Coordinate System</label>
+    <select id="topo_datum" class="v2-input" style="margin-bottom:5px;" onchange="if(typeof toggleTopoUI === 'function') toggleTopoUI()">
+        <option value="SVY21">🇸🇬 SVY21 (Local N, E)</option>
+        <option value="MM47">🇲🇲 MM2000 (Zone 47)</option>
+        <option value="MM46">🇲🇲 MM2000 (Zone 46)</option>
+        <option value="WGS_UTM47">🌍 WGS84 UTM (Zone 47)</option>
+        <option value="WGS_UTM46">🌍 WGS84 UTM (Zone 46)</option>
+        <option value="GLOBAL_UTM">🌍 Global UTM (Custom Zone)</option>
+        <option value="LOCAL" selected>📐 Local Grid (User Coordinate)</option>
+    </select>
+    
+    <div id="topo_custom_utm" style="display:none; gap:5px; margin-bottom:5px;">
+        <input type="text" inputmode="text" id="topo_custom_zone" class="v2-input" placeholder="Zone (1-60)" style="flex:1; margin-top:0;">
+        <select id="topo_custom_hemi" class="v2-input" style="flex:1; margin-top:0;"><option value="N">North (N)</option><option value="S">South (S)</option></select>
+    </div>
+    
+    <p id="topo_local_warn" style="font-size:11px; color:#d97706; margin-top:0; margin-bottom:10px;">* Local Grid uses a blank map background.</p>
+
+    <!-- 2. Contour Settings -->
+    <div style="background:#f1f5f9; padding:10px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:10px;">
+        <label class="v2-label" style="margin-top:0; color:#059669; font-weight:bold;">2. Contour Settings</label>
+        
+        <!-- 🔴 အသစ်ပြင်ဆင်ချက်: အကွက် (၄) ခုကို တစ်တန်းတည်းထားပြီး နေရာကျစ်လျစ်အောင် ပြုလုပ်ခြင်း -->
+        <div style="display:flex; gap:5px; margin-bottom:10px;">
+            <div style="flex:1;">
+                <label style="font-size:10px; color:var(--text); white-space:nowrap;">Major (m)</label>
+                <input type="text" id="topo_major_int" class="v2-input" value="1.0" style="margin-bottom:0; padding:6px 4px; font-size:12px; text-align:center;">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:10px; color:var(--text); white-space:nowrap;">Minor (m)</label>
+                <input type="text" id="topo_minor_int" class="v2-input" value="0.2" style="margin-bottom:0; padding:6px 4px; font-size:12px; text-align:center;">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:10px; color:var(--text); white-space:nowrap;">Label Spc</label>
+                <input type="text" id="topo_label_space" class="v2-input" value="15.0" style="margin-bottom:0; padding:6px 4px; font-size:12px; text-align:center;">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:10px; color:var(--text); white-space:nowrap;">Txt Hgt</label>
+                <input type="text" id="topo_text_height" class="v2-input" value="0.1" style="margin-bottom:0; padding:6px 4px; font-size:12px; text-align:center;">
+            </div>
+        </div>
+
+        <!-- Color Picker -->
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <div style="flex:1;">
+                <label style="font-size:11px; color:var(--text);">Major Color</label>
+                <input type="color" id="topo_major_color" class="v2-input" value="#f59e0b" style="padding:0; height:35px; width:100%; border:1px solid #ccc; cursor:pointer;" oninput="if(typeof updateContourStyle === 'function') updateContourStyle()">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:11px; color:var(--text);">Minor Color</label>
+                <input type="color" id="topo_minor_color" class="v2-input" value="#b45309" style="padding:0; height:35px; width:100%; border:1px solid #ccc; cursor:pointer;" oninput="if(typeof updateContourStyle === 'function') updateContourStyle()">
+            </div>
+        </div>
+
+        <!-- Opacity Slider -->
+        <div style="display:flex; flex-direction:column; gap:5px; margin-bottom:10px;">
+            <label style="font-size:11px; color:var(--text); display:flex; justify-content:space-between;">
+                <span>Contour Visibility (Opacity)</span>
+                <span id="opacity_val_txt" style="font-weight:bold; color:#059669;">100%</span>
+            </label>
+            <input type="range" id="topo_opacity" min="0.1" max="1" step="0.05" value="1" style="width:100%;" oninput="document.getElementById('opacity_val_txt').innerText = Math.round(this.value * 100) + '%'; if(typeof updateContourStyle === 'function') updateContourStyle();">
+        </div>
+
+        <!-- Smoothness Slider -->
+        <div style="display:flex; flex-direction:column; gap:5px;">
+            <label style="font-size:11px; color:var(--text); display:flex; justify-content:space-between;">
+                <span>Contour Smoothness</span>
+                <span id="smooth_val_txt" style="font-weight:bold; color:#2563eb;">Level: 1</span>
+            </label>
+            <input type="range" id="topo_smooth_level" min="0" max="4" value="1" step="1" style="width:100%;" oninput="document.getElementById('smooth_val_txt').innerText = 'Level: ' + this.value">
+        </div>
+    </div>
+
+    <!-- 3. Boundary Settings -->
+    <div style="background:var(--res-bg); padding:10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px;">
+        <label class="v2-label" style="margin-top:0; font-weight:bold; color:#ef4444;">3. Surface Boundary</label>
+        
+        <select id="topo_bdy_method" class="v2-input" style="margin-bottom:5px;" onchange="if(typeof toggleTopoBoundary === 'function') toggleTopoBoundary()">
+            <option value="auto">🪄 Auto Boundary (Convex Hull)</option>
+            <option value="max_edge">📏 Max Edge Length</option>
+            <option value="manual">✏️ Manual Draw on Map</option>
+        </select>
+
+        <!-- Max Edge Box -->
+        <div id="bdy_max_edge_div" class="hidden" style="display:flex; align-items:center; gap:10px;">
+            <label style="font-size:12px;">Max Length (m):</label>
+            <input type="text" id="topo_max_edge" class="v2-input" value="30" style="flex:1; margin:0;">
+        </div>
+
+        <!-- Manual Draw Box -->
+        <div id="bdy_manual_div" class="hidden">
+            <p style="font-size:11px; color:var(--label-text); margin:5px 0;">Load CSV first, then tap points on the map.</p>
+            
+            <div style="display:flex; gap:5px; margin-bottom: 5px;">
+                <button id="btn_draw_bdy" class="btn-action" style="background:#f59e0b; flex:2; font-size:12px; padding:8px;" onclick="if(typeof toggleBoundaryDrawMode === 'function') toggleBoundaryDrawMode()">✏️ Outer Boundary</button>
+                <button class="btn-action" style="background:#ef4444; flex:1; font-size:12px; padding:8px;" onclick="if(typeof clearManualBoundary === 'function') clearManualBoundary()">🗑️ Clear</button>
+            </div>
+            
+            <!-- 🔴 Exclude Area (Breakline) အတွက် နေရာ (Undo ကို Panel ကနေ ဖြုတ်လိုက်ပါပြီ) -->
+            <div style="display:flex; gap:5px; border-top: 1px dashed var(--input-border); padding-top: 5px;">
+                <button id="btn_draw_exclude" class="btn-action" style="background:#0284c7; flex:2; font-size:12px; padding:8px;" onclick="if(typeof toggleExcludeDrawMode === 'function') toggleExcludeDrawMode()">🚫 Exclude Area</button>
+                <button class="btn-action" style="background:#ef4444; flex:1; font-size:12px; padding:8px;" onclick="if(typeof clearExcludeBoundaries === 'function') clearExcludeBoundaries()">🗑️ Clear</button>
+            </div>
+        </div>
+    </div>
+
+<!-- 4. အသစ်ထပ်ဖြည့်ထားသော Map Layout Settings -->
+    <div style="background:#e0f2fe; padding:10px; border-radius:8px; border:1px solid #bae6fd; margin-bottom:10px;">
+        <label class="v2-label" style="margin-top:0; color:#0369a1; font-weight:bold;">4. Map Layout (For DXF Export)</label>
+        
+        <div style="display:flex; gap:10px; margin-bottom:5px;">
+            <div style="flex:2;">
+                <label style="font-size:11px; color:var(--text);">Map Title</label>
+                <input type="text" id="topo_map_title" class="v2-input" placeholder="e.g. YE VILLAGE AREA" value="TOPOGRAPHIC MAP" style="margin-bottom:0;">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:11px; color:var(--text);">Grid Interval (m)</label>
+                <input type="number" id="topo_grid_interval" class="v2-input" value="50" style="margin-bottom:0;">
+            </div>
+        </div>
+    </div>
+
+   <!-- 5. Load CSV & Generate -->
+    <!-- 🔴 အသစ်ထည့်ထားသော CSV Format ရွေးချယ်ရန် နေရာ -->
+    <label class="v2-label" style="margin-top:0; color:#1e40af; font-weight:bold;">5. CSV File Format</label>
+    <select id="topo_csv_format" class="v2-input" style="margin-bottom:10px;">
+        <option value="PNEZD">Point, Northing, Easting, Z, Code (PNEZD)</option>
+        <option value="PENZD">Point, Easting, Northing, Z, Code (PENZD)</option>
+    </select>
+
+    <input type="file" id="topo_csv_file" accept=".csv" style="display:none;" onchange="if(typeof loadTopoCSV === 'function') loadTopoCSV(event)">
+    <div style="display:flex; gap:5px; margin-bottom:10px;">
+        <button class="btn-action" style="background:#3b82f6; flex:1; padding:15px; font-size:14px;" onclick="document.getElementById('topo_csv_file').click()">📂 Load CSV Data</button>
+        <button class="btn-action" style="background:#10b981; flex:1; padding:15px; font-size:14px;" onclick="if(typeof processTopoSurface === 'function') processTopoSurface()">⚙️ Generate Topo</button>
+    </div>
+
+<!-- 🔴 အသစ်ထပ်ဖြည့်ရန်: CSV Status ပြမည့်နေရာ -->
+    <div id="topo_status" style="margin-top:10px; font-size:13px; font-weight:bold; text-align:center; display:none;"></div>
+
+    <!-- 🔴 Topo ထုတ်ပြီးရင် ပေါ်လာမည့် Export Box -->
+    <div id="topo_export_box" class="hidden" style="margin-top:15px; padding-top:15px; border-top:2px dashed #cbd5e1;">
+        <div style="display:flex; gap:5px; margin-bottom: 5px;">
+            <button class="btn-action" style="background:#0284c7; flex:1; padding:12px; font-size:13px;" onclick="if(typeof view3DSurface === 'function') view3DSurface()">🏔️ View 3D Map</button>
+            <button class="btn-action" style="background:#10b981; flex:1; padding:12px; font-size:13px;" onclick="if(typeof export3DTinDXF === 'function') export3DTinDXF()">🔺 Export 3D DXF</button>
+        </div>
+        <div style="display:flex; gap:5px; margin-bottom: 5px;">
+            <button class="btn-action" style="background:#ca8a04; flex:1; padding:12px; font-size:13px;" onclick="if(typeof exportTopoDXF === 'function') exportTopoDXF()">🗺️ Export 2D DXF</button>
+            <!-- 🔴 အသစ်ထည့်ထားသော 3D KML ခလုတ် -->
+            <button class="btn-action" style="background:#8b5cf6; flex:1; padding:12px; font-size:13px;" onclick="if(typeof exportTopo3DKML === 'function') exportTopo3DKML()">🌍 Export 3D KML</button>
+        </div>
+        <div style="display:flex; gap:5px;">
+            <button class="btn-action" style="background:#ef4444; width:100%; padding:12px; font-size:13px;" onclick="if(typeof clearTopoData === 'function') clearTopoData()">🗑️ Clear Data</button>
+        </div>
+    </div>
+
+    <!-- 🔴 3D Viewer ပေါ်လာမည့် Popup Modal အခွံ -->
+    <div id="topo3dModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:99999; justify-content:center; align-items:center; flex-direction: column;">
+        <div style="width:100%; display:flex; justify-content:space-between; padding:10px 20px; background:#0f172a; align-items:center;">
+            <h3 style="color:#38bdf8; margin:0; font-size:16px;">🏔️ 3D TIN Surface View</h3>
+            <button onclick="document.getElementById('topo3dModal').style.display='none'" style="background:#ef4444; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">Close ❌</button>
+        </div>
+        
+        <!-- 🔴 အသစ်ထည့်ထားသော Z-Scale Slider နေရာ -->
+        <div style="width:100%; background:#1e293b; padding:10px 20px; display:flex; align-items:center; gap:15px; border-bottom:1px solid #334155;">
+            <label style="color:#94a3b8; font-size:13px; font-weight:bold; white-space:nowrap;">Z-Scale: <span id="z_scale_val" style="color:#38bdf8;">0.5x</span></label>
+            <!-- Range က 0.1 (ပြားပြားလေး) ကနေ 2.0 (အရမ်းမြင့်သော) အထိ ထားပေးထားပါတယ် -->
+            <input type="range" id="topo_z_scale" min="0.1" max="2.0" step="0.1" value="0.5" style="flex:1; cursor:pointer;" oninput="update3DScale(this.value)">
+        </div>
+
+        <div id="plotly_3d_div" style="width:100%; flex:1; background:#1e293b;"></div>
+    </div>
+</div>
+<button id="btn_toggle_topo_panel" class="btn-action" style="width:100%; background:#f59e0b; padding:8px; font-size:12px; margin-bottom:10px; border-radius:8px;" onclick="if(typeof toggleTopoPanel === 'function') toggleTopoPanel()">🔼 Hide Controls & Expand Map</button>
+  </div>
+
+ <!-- ========================================== -->
+ <!-- 7. EARTHWORK / VOLUME CALCULATOR TOOL -->
+ <!-- ========================================== -->
+                    <div id="cogo_vol_tool" class="hidden">
+                    <div id="vol_controls_panel">
+                        
+                        <!-- 1. Data Source -->
+                        <div style="background:#f1f5f9; padding:10px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:10px;">
+                            <label class="v2-label" style="margin-top:0; color:#1e40af; font-weight:bold;">1. Select Data Source</label>
+                            
+                            <div style="display:flex; flex-direction:column; gap:8px; margin-top:5px;">
+                                <!-- Surface 1 -->
+                                <div>
+                                    <button class="btn-action" style="background:#2563eb; width:100%; padding:10px; font-size:13px; margin:0;" onclick="if(typeof volLoadFromTopo === 'function') volLoadFromTopo()">📥 Load Surface 1 (from Topo)</button>
+                                    <div id="vol_status" style="margin-top:4px; font-size:11px; font-weight:bold; color:#059669; text-align:center; display:none;"></div>
+                                </div>
+                                
+                                <!-- Surface 2 -->
+                                <div>
+                                    <input type="file" id="vol_surf2_csv" accept=".csv" style="display:none;" onchange="if(typeof loadVolSurface2CSV === 'function') loadVolSurface2CSV(event)">
+                                    <button class="btn-action" style="background:#ea580c; width:100%; padding:10px; font-size:13px; margin:0;" onclick="document.getElementById('vol_surf2_csv').click()">📂 Load Surface 2 (for S2S Vol)</button>
+                                    <div id="vol_surf2_status" style="margin-top:4px; font-size:11px; font-weight:bold; color:#d97706; text-align:center; display:none;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Draw Boundary -->
+                        <div style="background:var(--res-bg); padding:10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px;">
+                            <label class="v2-label" style="margin-top:0; font-weight:bold; color:#ef4444;">2. Draw Calculation Boundary</label>
+                            <p style="font-size:11px; color:var(--label-text); margin:5px 0;">Tap to place point, Drag to adjust, then click Add Point.</p>
+                            
+                            <div style="display:flex; gap:5px;">
+                                <button id="btn_vol_draw" class="btn-action" style="background:#f59e0b; flex:2; font-size:12px; padding:10px;" onclick="if(typeof toggleVolDrawMode === 'function') toggleVolDrawMode()">✏️ Draw Boundary</button>
+                                
+                                <button class="btn-action" style="background:#ef4444; flex:1; font-size:12px; padding:10px;" onclick="if(typeof clearVolBoundary === 'function') clearVolBoundary()">🗑️ Clear</button>
+                            </div>
+                        </div>
+
+                        <!-- 3. Target Base Level -->
+                        <div id="vol_target_panel" class="hidden" style="background:#e0f2fe; padding:10px; border-radius:8px; border:1px solid #bae6fd; margin-bottom:10px;">
+                            <label class="v2-label" style="margin-top:0; color:#0369a1; font-weight:bold;">3. Target Base Level</label>
+                            <select id="vol_base_type" class="v2-input" style="margin-bottom:10px;" onchange="if(typeof renderVolTargetInputs === 'function') renderVolTargetInputs()">
+                                <option value="flat">📏 Flat Base (One Single Level)</option>
+                                <option value="variable">📐 Variable (Different Level at each Corner)</option>
+                                <option value="surface2">⛰️ Surface to Surface (Load 2nd CSV)</option>
+                            </select>
+                            
+                            <!-- Dynamic Inputs will appear here -->
+                            <div id="vol_target_inputs" style="display:flex; flex-direction:column; gap:5px;"></div>
+                        </div>
+
+                       <!-- 4. Calculation Settings -->
+                        <div id="vol_settings_panel" class="hidden" style="background:#fef3c7; padding:10px; border-radius:8px; border:1px solid #fde68a; margin-bottom:10px;">
+                            <label class="v2-label" style="margin-top:0; color:#d97706; font-weight:bold;">4. Calculation Settings</label>
+                            <div style="display:flex; gap:10px; margin-top:5px;">
+                                <div style="flex:1;">
+                                    <label style="font-size:11px; color:var(--text); font-weight:bold;">Grid Size (m)</label>
+                                    <input type="number" id="vol_grid_size" class="v2-input" value="0.5" step="0.1" min="0.1" style="margin-bottom:0; text-align:center; color:#b91c1c; font-weight:bold;">
+                                </div>
+                                <div style="flex:1;">
+                                    <label style="font-size:11px; color:var(--text); font-weight:bold;">Swell (%)</label>
+                                    <input type="number" id="vol_swell" class="v2-input" value="0" min="0" title="Increase in cut volume" style="margin-bottom:0; text-align:center;">
+                                </div>
+                                <div style="flex:1;">
+                                    <label style="font-size:11px; color:var(--text); font-weight:bold;">Shrink (%)</label>
+                                    <input type="number" id="vol_shrink" class="v2-input" value="0" min="0" title="Decrease in fill volume" style="margin-bottom:0; text-align:center;">
+                                </div>
+                            </div>
+                            <div style="font-size:10px; color:#d97706; margin-top:5px; text-align:center;">
+                                * Leave Swell & Shrink at 0% if no adjustment is needed.
+                            </div>
+                        </div>
+
+                        <!-- 5. Save Area & Calculate -->
+                        <div id="vol_multi_area_box" class="hidden" style="margin-bottom:10px;">
+                            <button class="btn-action" style="width:100%; background:#0ea5e9; padding:12px; font-size:14px; margin-bottom:5px;" onclick="if(typeof saveCurrentVolArea === 'function') saveCurrentVolArea()">💾 Save Volume BDY & Start New</button>
+                        </div>
+                        
+                        <div id="saved_vol_areas_list" style="margin-bottom:10px; display:flex; flex-direction:column; gap:5px;"></div>
+
+                        <button class="btn-action" style="width:100%; background:#10b981; padding:15px; font-size:16px; margin-bottom:10px;" onclick="if(typeof calcVolume === 'function') calcVolume()">⚙️ Calculate Total Volume</button>
+
+             <!-- 6. Results & Export Box (ဒါလေး ပျောက်သွားလို့ပါ) -->
+                        <div id="vol_result_box" class="hidden" style="margin-top:10px; padding-top:10px; border-top:2px dashed #cbd5e1;">
+                            <div id="vol_summary" style="background:rgba(16,185,129,0.1); border:1px solid #10b981; border-radius:8px; padding:10px; font-size:14px; line-height: 1.6; color: var(--text);">
+                                <!-- Results will be injected here -->
+                            </div>
+                            <button class="btn-action" style="background:#ca8a04; width:100%; padding:12px; font-size:14px; margin-top:10px;" onclick="if(typeof exportVolDXF === 'function') exportVolDXF()">🗺️ Export DXF Report</button>
+                        </div>
+                        </div>
+<button id="btn_toggle_vol_panel" class="btn-action" style="width:100%; background:#f59e0b; padding:8px; font-size:12px; margin-bottom:10px; border-radius:8px;" onclick="if(typeof toggleVolPanel === 'function') toggleVolPanel()">🔼 Hide Controls & Expand Map</button>
+                     </div>  
+                  </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🗺️ SITE PLAN / DXF VIEWER (App 6) -->
+    <div id="app6_view" class="hidden app-container">
+        <div id="dxf_controls_panel" class="app-card" style="margin-bottom:5px;">
+            <div class="card-header" style="background:#ca8a04;">
+                <h3 class="card-title">Site Plan Viewer</h3>
+                <div class="card-subtitle">DXF Map Overlay (Canvas Rendered)</div>
+            </div>
+            <div class="card-body" style="padding: 10px;">
+                <label class="v2-label" style="margin-top:0;">1. Select DXF Datum:</label>
+                <select id="dxf_datum" class="v2-input" style="margin-bottom:10px;" onchange="toggleDxfDatum()">
+                    <option value="SVY21">🇸🇬 SVY21 (Local N, E)</option>
+                    <option value="MM47">🇲🇲 MM2000 (Zone 47)</option>
+                    <option value="MM46">🇲🇲 MM2000 (Zone 46)</option>
+                    <option value="WGS_UTM47">🌍 WGS84 UTM (Zone 47)</option>
+                    <option value="WGS_UTM46">🌍 WGS84 UTM (Zone 46)</option>
+                    <option value="GLOBAL_UTM">🌍 Global UTM (Custom Zone)</option>
+                </select>
+                <div id="dxf_custom_utm" style="display:none; gap:5px; margin-bottom:10px;">
+                    <input type="text" inputmode="text" id="dxf_custom_zone" class="v2-input" placeholder="Zone (1-60)" style="flex:1; margin-top:0;">
+                    <select id="dxf_custom_hemi" class="v2-input" style="flex:1; margin-top:0;"><option value="N">North (N)</option><option value="S">South (S)</option></select>
+                </div>
+                <input type="file" id="dxf_file" accept=".dxf" style="display:none;" onchange="handleDXFUpload(event)">
+                <div style="display:flex; gap:5px;">
+                    <button class="btn-action" style="background:#ca8a04; flex:2; padding:12px;" onclick="document.getElementById('dxf_file').click()">📂 Load DXF</button>
+                    <button class="btn-action" id="btn_export_kml" style="background:#10b981; flex:1; padding:12px; display:none;" onclick="exportDxfToKml()">💾 KML</button>
+                    <button class="btn-action" style="background:#ef4444; flex:1; padding:12px;" onclick="clearDXF()">🗑️ Clear</button>
+                </div>
+                <div style="font-size:12px; text-align:center; margin-top:8px; margin-bottom:8px; font-weight:bold; color:#ca8a04;"><span id="dxf_status">Waiting for DXF file...</span></div>
+                <div style="background:var(--res-bg); padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); display:flex; align-items:center; justify-content:space-between;">
+                    <label style="font-size:12px; font-weight:bold; color:var(--text);">🔠 Size (DXF & Pts):</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button class="btn-action" style="padding:5px 12px; font-size:14px; font-weight:bold; background:#3b82f6; margin:0;" onclick="changeDxfTextSize(-2)">A-</button>
+                        <span id="dxf_text_size_display" style="font-size:14px; font-weight:bold; width:25px; text-align:center; color:var(--text);">14</span>
+                        <button class="btn-action" style="padding:5px 12px; font-size:14px; font-weight:bold; background:#3b82f6; margin:0;" onclick="changeDxfTextSize(2)">A+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button id="btn_toggle_dxf_panel" class="btn-action" style="width:100%; background:#f59e0b; padding:8px; font-size:12px; margin-bottom:10px; border-radius:8px;" onclick="toggleDxfPanel()">🔼 Hide Controls & Expand Map</button>
+    </div>
+
+    <!-- 📷 CAMERA & WATERMARK (App 7) -->
+    <div id="app7_view" class="hidden app-container">
+        <div class="app-card">
+            <div class="card-header" style="background:#16a34a;">
+                <h3 class="card-title">Survey Camera</h3>
+                <div class="card-subtitle">Take Photo with GPS Data Watermark</div>
+            </div>
+            <div class="card-body">
+                <label class="v2-label" style="margin-top:0;">Point Name / Description:</label>
+                <input type="text" id="cam_point_name" class="v2-input" placeholder="e.g. BM-01 or Corner Post">
+
+                <label class="v2-label">Select Coordinate Datum for Photo:</label>
+                <select id="cam_datum" class="v2-input">
+                    <option value="SVY21">🇸🇬 SVY21 (Local N, E)</option>
+                    <option value="MM2000">🇲🇲 MM2000 (Auto Zone)</option>
+                    <option value="GLOBAL_UTM">🌍 WGS84 UTM (Auto Zone)</option>
+                </select>
+
+                <input type="file" id="cam_hidden_input" accept="image/*" capture="environment" style="display:none;" onchange="processCameraPhoto(event)">
+
+                <button class="btn-action" style="width:100%; background:#16a34a; padding:15px; margin-top:15px; font-size:16px;" onclick="triggerCamera()">
+                    📸 Open Camera & Stamp
+                </button>
+
+                <div class="camera-preview-box">
+                    <div id="cam_placeholder" class="camera-placeholder">📷<br>Captured photo will appear here</div>
+                    <img id="cam_preview_img" src="" style="display:none;">
+                </div>
+
+                <div id="cam_status" style="margin-top:10px; font-size:13px; font-weight:bold; color:#16a34a; text-align:center; display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🗺️ SHARED MAP -->
+    <div id="shared_map_view" class="hidden">
+        <div class="app-card" style="margin-bottom: 0;">
+            <div class="card-body" style="padding: 10px;">
+                <!-- Offline Map Buttons Removed -->
+                <div style="background:var(--res-bg); padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px; display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; align-items:center;">
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_dxf_lines" checked onchange="toggleDxfLayers()"> 〰️ Dxf Lines</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_dxf_texts" checked onchange="toggleDxfLayers()"> 🔠 Dxf Text</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_so_pts" checked onchange="toggleDxfLayers()"> 🎯 SO Pts</label>
+                   <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_so_texts" checked onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔠 SO Text</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> ⛰️ Topo Pts</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_contours" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 〰️ Contours</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_tin" onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 🔺 TIN Surface</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#8b5cf6;"><input type="checkbox" id="tgl_show_pt_name" onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔤 Topo Name</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#059669;"><input type="checkbox" id="tgl_show_z_val" onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> ↕️ Topo Z Val</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#ea580c;"><input type="checkbox" id="tgl_surf2_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 🟠 Surf-2 Pts</label> 
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#0ea5e9;"><input type="checkbox" id="tgl_vol_bdys" checked onchange="if(typeof toggleVolBdyLayer==='function') toggleVolBdyLayer()"> 🟦 Vol BDYs</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#2563eb;"><input type="checkbox" id="tgl_utm_zones" onchange="if(typeof toggleUTMZones==='function') toggleUTMZones()"> 🌐 UTM Zones</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; grid-column: 1 / -1; border-top:1px dashed #ccc; padding-top:6px;"><input type="checkbox" id="tgl_dxf_dark" onchange="reRenderDXFColors()"> 🌙 Use Dark Colors for DXF</label>
+                </div>
+                <div class="map-wrapper" id="map_container">
+                    <div id="map_view"></div>
+<!-- 🔴 အများသုံး Shared Undo ခလုတ် -->
+                    <button id="sharedMapUndoBtn" class="map-loc-btn" style="bottom:190px; right:10px; background:#8b5cf6; color:white; border-color:#7c3aed; display:none;" onclick="if(typeof handleSharedMapUndo === 'function') handleSharedMapUndo()" title="Undo Last Point">↩️</button>                    <!-- 🔵 Track Button (Icon Only - Square) -->
+                    <button id="trackBtn" class="map-loc-btn" style="bottom:130px; right:10px; background:#3b82f6; color:white; border-color:#2563eb;" onclick="if(typeof toggleTracking === 'function') toggleTracking()" title="Start/Stop Tracking">👣</button>
+                    <button id="measureBtn" class="map-loc-btn" style="bottom:70px; right:10px; background:#f59e0b; color:white; border-color:#d97706;" onclick="toggleMeasureMode()" title="Measure Distance">📏</button>
+                    <button id="autoCenterBtn" class="map-loc-btn active" onclick="toggleAutoCenter()" title="Find My Location">📍</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 💾 & 📁 SHARED BOTTOM TOOLS -->
+    <div id="shared_tools_view" class="hidden">
+        <div id="record_panel" class="app-card" style="border: 2px solid #10b981; margin-bottom: 15px; display:none;">
+            <div class="card-body" style="padding: 12px;">
+                <div style="font-size:12px;font-weight:bold;color:#10b981;margin-bottom:10px;text-align:center;">💾 GPS Topo Point Recorder</div>
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                    <input type="text" id="pt_id" class="v2-input" placeholder="Point (P)" style="margin:0;flex:1;">
+                    <input type="text" id="pt_desc" class="v2-input" placeholder="Code (D)" style="margin:0;flex:2;">
+                </div>
+                <div id="avg_timer_display" class="avg-timer-box">⏳ Averaging... Please hold steady (<span id="avg_sec_left">10</span>s left)</div>
+                <div class="record-btn-group">
+                    <button class="btn-quick-rec" onclick="triggerRecord(false)">⚡ Quick Rec</button>
+                    <button class="btn-precise-rec" onclick="triggerRecord(true)">⏱ Precise (10s)</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-action" style="flex:1;padding:12px;font-size:14px;background:#f59e0b;" onclick="triggerExport()">📁 Export CSV</button>
+                    <button class="btn-action" style="flex:0.5;padding:12px;font-size:14px;background:#ef4444;" onclick="triggerClearRecords()">🗑️ Clear</button>
+                </div>
+                <div id="record_status" style="margin-top:10px; font-size:13px; font-weight:bold; color:#059669; text-align:center; display:none; background:rgba(5,150,105,0.1); padding:8px; border-radius:8px; border:1px solid rgba(5,150,105,0.3);"></div>
+            </div>
+        </div>
+        
+ <!-- 🔵 အသစ်ထည့်သော Track Manager Panel -->
+<div id="track_manager_panel" class="app-card" style="border: 2px solid #3b82f6; margin-bottom: 15px; display:none;">
+    <div class="card-body" style="padding: 12px;">
+        <div style="font-size:13px;font-weight:bold;color:#3b82f6;margin-bottom:10px;text-align:center;">🗺️ GPS Track Manager</div>
+
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+            <label style="font-size:12px; font-weight:bold; color:var(--text); flex:1;">Track Color:</label>
+            <input type="color" id="track_color_input" value="#3b82f6" style="width:44px; height:34px; padding:2px; border:1px solid var(--input-border); border-radius:8px; cursor:pointer; background:var(--card-bg);" onchange="if(typeof onTrackColorChange==='function') onTrackColorChange(this.value)">
+        </div>
+        
+        <!-- Track List ပြမည့်နေရာ -->
+        <div id="track_list_container" style="max-height: 150px; overflow-y: auto; background: var(--res-bg); border: 1px solid var(--input-border); border-radius: 8px; padding: 5px; margin-bottom: 10px;">
+            <div style="text-align:center; color:var(--label-text); font-size: 12px; margin-top: 10px;">No tracks saved yet.</div>
+        </div>
+        
+        <div style="display:flex; gap:5px;">
+            <button class="btn-action" style="flex:1; background:#0ea5e9; padding:10px; font-size:13px;" onclick="if(typeof exportTrackToKML === 'function') exportTrackToKML()">💾 Export All (KML)</button>
+            <button class="btn-action" style="flex:0.5; background:#ef4444; padding:10px; font-size:13px;" onclick="if(typeof clearAllTracks === 'function') clearAllTracks()">🗑️ Clear</button>
+        </div>
+    </div>
+</div>
+        
+        <div id="csv_panel" class="app-card csv-panel">
+            <div class="card-body" style="padding: 5px;">
+                <div style="font-size:14px;font-weight:bold;color:#3b82f6;text-align:center;margin-bottom:10px;">📁 Bulk CSV Converter (PNEZD)</div>
+                <select id="csv_mode" class="v2-input" style="padding:10px; font-size:13px; margin-bottom:10px;">
+                    <option value="1">Local (PNEZD) → WGS84 LL & NE</option>
+                    <option value="2">WGS84 LL (Lat, Lon) → Local NE</option>
+                    <option value="3">WGS84 NE (PNEZD) → Local NE & LL</option>
+                </select>
+        <!-- CSV အတွက် သီးသန့် Zone/Hemi ရွေးမည့်နေရာ -->
+<div id="csv_zone_settings" style="display:none; gap:8px; margin-bottom:10px;">
+    
+    <!-- Zone Box (ရှေ့မှာ စာသားပါဝင်သည်) -->
+    <div style="flex:1; display:flex; align-items:center; border:1px solid var(--input-border); border-radius:6px; overflow:hidden; background:var(--card-bg);">
+        <div style="padding: 0 10px; font-size:12px; font-weight:bold; color:var(--text); background:rgba(0,0,0,0.05); height:100%; display:flex; align-items:center; border-right:1px solid var(--input-border);">Zone</div>
+        <input type="number" id="csv_zone_inp" class="v2-input" value="47" style="border:none; border-radius:0; margin:0; flex:1; box-shadow:none; background:transparent;">
+    </div>
+
+    <!-- Hemisphere Dropdown -->
+    <select id="csv_hemi_inp" class="v2-input" style="flex:1; margin:0; display:none;">
+        <option value="N">Hemi: North (N)</option>
+        <option value="S">Hemi: South (S)</option>
+    </select>
+    
+</div>
+                <input type="file" id="csv_file" accept=".csv" style="display:none;" onchange="handleCSVFile(event)">
+                <div style="display:flex; gap:5px; margin-top:5px;">
+                    <button class="csv-upload-btn" style="flex:3; margin-top:0;" onclick="document.getElementById('csv_file').click()">📂 Select CSV File</button>
+                    <button class="csv-upload-btn" style="flex:1; margin-top:0; background:#ef4444;" onclick="clearCSVFile()">🗑️ Clear</button>
+                </div>
+                <div id="csv_status" style="margin-top:10px; font-size:12px; font-weight:bold; color:#059669; text-align:center; display:none;"></div>
+                <button id="csv_download_btn" class="csv-upload-btn" style="background:#10b981; display:none; margin-top:10px;" onclick="downloadCSV()">⬇️ Download Converted File</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- 🔵 အသစ်ထည့်သော Save Track Popup (Modal) -->
+<div id="saveTrackModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:var(--card-bg); padding:20px; border-radius:12px; width:80%; max-width:320px; box-shadow:0 10px 25px rgba(0,0,0,0.3); border: 1px solid var(--input-border);">
+        <h3 style="margin-top:0; color:var(--primary); font-size:16px; text-align:center;">💾 Save GPS Track</h3>
+        
+        <label class="v2-label" style="color:var(--text);">Enter Track Name:</label>
+        <input type="text" id="track_name_input" class="v2-input" placeholder="e.g. Route A, Boundary line">
+
+        <label class="v2-label" style="color:var(--text); margin-top:10px;">Track Color:</label>
+        <input type="color" id="track_save_color_input" value="#3b82f6" style="width:100%; height:36px; padding:2px; border:1px solid var(--input-border); border-radius:8px; cursor:pointer; background:var(--card-bg);" onchange="if(typeof onTrackColorChange==='function') onTrackColorChange(this.value)">
+        
+        <div style="font-size:12px; color:#d97706; margin-top:10px; text-align:center;" id="track_info_text">Points recorded: 0</div>
+
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button class="btn-action" style="flex:1; background:#10b981; padding:12px;" onclick="if(typeof confirmSaveTrack === 'function') confirmSaveTrack()">Save</button>
+            <button class="btn-action" style="flex:1; background:#ef4444; padding:12px;" onclick="if(typeof cancelSaveTrack === 'function') cancelSaveTrack()">Discard</button>
+        </div>
+    </div>
+</div>
+    <!-- ABOUT MODAL (Data မပျောက်စေရန်) -->
+<div id="aboutModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; justify-content:center; align-items:center;">
+    <div style="background:var(--card-bg); padding:20px; border-radius:12px; width:90%; max-width:450px; border: 1px solid var(--input-border); position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        
+        <h3 style="margin-top:0; color:var(--primary); text-align:center;">ℹ️ About SVY21/MM2000 GPS CONVERTER</h3>
+        
+        <div style="color:var(--text); font-size:13px; line-height:1.6; max-height:60vh; overflow-y:auto; padding-right:5px; margin-bottom:15px;">
+            <p style="margin-top:0;"><b>SVY21/MM2000 GPS CONVERTER</b> is a professional surveying application designed for precision and reliability. Fully equipped with Coordinate Conversions, Stakeout capabilities, COGO utilities, and Offline Maps.</p>
+            
+            <h4 style="color: var(--primary); margin-bottom: 5px; margin-top: 15px;">🌟 Core Features</h4>
+            <ul style="margin-top: 5px; margin-bottom: 15px; padding-left: 20px;">
+                <li style="margin-bottom: 5px;">🌍 <b>Coordinate Datums:</b> Seamless conversion between SVY21, MM2000, and Global WGS84 UTM.</li>
+                <li style="margin-bottom: 5px;">🎯 <b>Set Out Navigation:</b> Visual guidance system for precise point layout.</li>
+                <li style="margin-bottom: 5px;">🧮 <b>COGO Tools:</b> Area, Bearing/Distance, Gradient, Traverse Adjustment, Pile Eccentricity, Topo Surface & Contour, Earthwork/Volume.</li>
+                <li style="margin-bottom: 5px;">🗺️ <b>Site Plan (DXF):</b> Load and view AutoCAD DXF maps directly.</li>
+                <li style="margin-bottom: 5px;">📷 <b>Survey Camera:</b> Take photos with embedded GPS & Datum watermarks.</li>
+            </ul>
+
+            <!-- ခလုတ်များ နေရာ -->
+            <div style="text-align: center; margin-bottom: 10px; display:flex; flex-direction:column; gap:8px;">
+                <button class="btn-action" style="background:#f59e0b; width:100%; padding:10px 15px; font-size:13px;" onclick="window.open('https://play.google.com/store/apps/details?id=com.winaung.svy21converter', '_blank')">⭐ Rate Us on Play Store</button>
+                
+                <div style="display:flex; gap:8px; width:100%;">
+                    <!-- YouTube Link အစစ် ထည့်သွင်းပြီး -->
+                    <button class="btn-action" style="background:#ef4444; flex:1; padding:10px; font-size:13px;" onclick="window.open('https://youtube.com/@winaung4091?si=j4SOfIUmg3AhOYa3', '_blank')">▶️ YouTube</button>
+                    
+                    <!-- Facebook Link အစစ် ထည့်သွင်းပြီး -->
+                    <button class="btn-action" style="background:#1877f2; flex:1; padding:10px; font-size:13px;" onclick="window.open('https://www.facebook.com/share/1CoW6fFxAD/', '_blank')">📘 Facebook</button>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; border-top: 1px dashed var(--input-border); padding-top: 10px; text-align: center; font-size: 12px;">
+                <p style="margin: 2px 0;">Developed by <b style="color: #10b981; font-size: 13px;">Win Aung</b></p>
+                <p style="margin: 2px 0;">Release Date: 14 March 2026</p>
+            </div>
+        </div>
+
+        <button class="btn-action" style="background:#ef4444; width:100%; padding:12px; font-size:14px;" onclick="window.closeAbout()">Close ❌</button>
+    </div>
+</div>
+<!-- 📄 FOOTER FOR ADSENSE APPROVAL -->
+<div style="text-align:center; padding: 20px; font-size: 12px; color: var(--label-text); background: var(--card-bg); margin-top: 20px; border-top: 1px solid var(--input-border);">
+    <p style="margin-bottom: 5px;"><b>GPS Converter (SVY21/MM2000)</b> is a professional surveying web application designed to help surveyors calculate coordinates, find geoid values, and render DXF site plans accurately.</p>
+    <p style="margin-bottom: 10px;">By using this application, you agree to our policies.</p>
+    
+    <!-- 🔴 Links များကို HTML ဖိုင်သီးသန့်များဆီသို့ ချိတ်ဆက်ခြင်း -->
+    <a href="blog.html" style="color: #10b981; font-weight: bold; text-decoration: none; margin: 0 10px;">📝 Surveying Blog</a> |
+    <a href="privacy.html" style="color: #3b82f6; text-decoration: none; margin: 0 10px;">Privacy Policy</a> |
+    <a href="terms.html" style="color: #3b82f6; text-decoration: none; margin: 0 10px;">Terms of Service</a> |
+    <a href="about.html" style="color: #3b82f6; text-decoration: none; margin: 0 10px;">About Us</a>
+    
+    <p style="margin-top: 10px;">&copy; 2026 Win Aung. All Rights Reserved.</p>
+</div>
+
+<script src="formulas.js"></script>
+<script src="globals.js"></script>
+<script src="map_engine.js"></script>
+<script src="app_conversions.js"></script>
+<!-- 🔴 AI မျက်စိမလည်စေရန် နာမည်ပြောင်းထားသော ဖိုင်အသစ်များ 🔴 -->
+<script src="module_cogo_stakeout.js"></script> 
+<script src="module_surface_volume.js"></script>
+<script src="app_camera.js"></script>
+<script src="app_logic.js"></script>
+<script src="https://pl29905456.effectivecpmnetwork.com/7f/6e/47/7f6e47086726dcc7791f39e47405f88d.js"></script>
+</body>
+</html>

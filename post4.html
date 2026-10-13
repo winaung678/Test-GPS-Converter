@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viewing DXF on Mobile Devices</title>
+    <link rel="stylesheet" href="style.css">
+    <style>.top-navbar { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 15px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; } .nav-brand { font-size: 20px; font-weight: 900; color: var(--primary); text-decoration: none; } .post-content { padding: 30px 20px; background: var(--card-bg); border-radius: 12px; line-height: 1.8; font-size: 16px; color: var(--text); } h1 { color: var(--primary); font-size: 24px; } h2 { color: #d97706; font-size: 20px; margin-top: 25px; }</style>
+</head>
+<body>
+    <nav class="top-navbar"><a href="index.html" class="nav-brand">GPS CONVERTER</a><a href="blog.html" style="text-decoration: none; font-weight: bold; color: var(--text);">🔙 Back to Blog</a></nav>
+    <div class="container-box">
+        <div class="post-content">
+            <h1>The Evolution of Site Plans: Viewing DXF on Mobile Devices</h1>
+            
+            <p>For decades, carrying A0-sized printed blueprints was the only way civil engineers and surveyors could reference site plans in the field. Not only were these paper plans cumbersome, but they were also prone to damage and lacked the ability to provide dynamic geospatial feedback.</p>
+
+            <h2>The Shift to Digital: AutoCAD and DXF</h2>
+            <p>The introduction of Computer-Aided Design (CAD) revolutionized the drafting process. The DXF (Drawing Exchange Format) became the universal standard for sharing 2D vector data across different software platforms. However, bringing these heavy vector files into the muddy, unpredictable environment of a construction site remained a challenge.</p>
+
+            <h2>HTML5 Canvas and Mobile Rendering</h2>
+            <p>The landscape changed with the advancement of mobile web technologies. Utilizing the HTML5 Canvas API and JavaScript parsers, it is now possible to parse thousands of DXF entities—including lines, polylines, circles, and texts—directly within a smartphone browser.</p>
+            <p>This technological leap allows surveyors to overlay proposed site plans onto live satellite maps. Furthermore, the integration of "Node Snapping" algorithms enables users to tap their screen and instantly grab the exact coordinates of a CAD vertex, completely bridging the gap between digital design and physical layout.</p>
+
+            <h2>Offline Capabilities</h2>
+            <p>Because construction sites often lack reliable internet connectivity, modern mobile applications utilize IndexedDB to store parsed DXF data locally. This ensures that engineers always have access to crucial site geometry, regardless of their network status.</p>
+        </div>
+    </div>
+</body>
+</html>
