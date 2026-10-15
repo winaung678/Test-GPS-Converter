@@ -1046,15 +1046,23 @@
                     <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_dxf_lines" checked onchange="toggleDxfLayers()"> 〰️ Dxf Lines</label>
                     <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_dxf_texts" checked onchange="toggleDxfLayers()"> 🔠 Dxf Text</label>
                     <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_so_pts" checked onchange="toggleDxfLayers()"> 🎯 SO Pts</label>
-                   <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_so_texts" checked onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔠 SO Text</label>
+                    
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_so_texts" checked onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔠 SO Text</label>
                     <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> ⛰️ Topo Pts</label>
                     <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_contours" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 〰️ Contours</label>
+                    
                     <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_tin" onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 🔺 TIN Surface</label>
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#8b5cf6;"><input type="checkbox" id="tgl_show_pt_name" onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔤 Topo Name</label>
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#059669;"><input type="checkbox" id="tgl_show_z_val" onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> ↕️ Topo Z Val</label>
+                    
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#ea580c;"><input type="checkbox" id="tgl_surf2_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 🟠 Surf-2 Pts</label> 
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#0ea5e9;"><input type="checkbox" id="tgl_vol_bdys" checked onchange="if(typeof toggleVolBdyLayer==='function') toggleVolBdyLayer()"> 🟦 Vol BDYs</label>
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#2563eb;"><input type="checkbox" id="tgl_utm_zones" onchange="if(typeof toggleUTMZones==='function') toggleUTMZones()"> 🌐 UTM Zones</label>
+                    
+                    <!-- 🔴 အသစ်ထည့်ထားသော GPS အမှတ်နှင့် နာမည် အဖွင့်အပိတ် Checkbox (၂) ခု -->
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#b91c1c;"><input type="checkbox" id="tgl_gps_pts" checked onchange="if(typeof toggleDxfLayers==='function') toggleDxfLayers()"> 📍 GPS Pts</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#d97706;"><input type="checkbox" id="tgl_gps_name" checked onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔤 GPS Name</label>
+                    
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; grid-column: 1 / -1; border-top:1px dashed #ccc; padding-top:6px;"><input type="checkbox" id="tgl_dxf_dark" onchange="reRenderDXFColors()"> 🌙 Use Dark Colors for DXF</label>
                 </div>
                 <div class="map-wrapper" id="map_container">
