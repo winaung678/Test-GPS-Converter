@@ -751,13 +751,16 @@ window.renderTrackListUI = function() {
 };
 
 window.toggleTrackOnMap = function(id) {
-    let track = window.allSavedTracks.find(t => t.id === id);
+    // 🔴 ပြင်ဆင်ချက်: Number နဲ့ String ပြဿနာမတက်အောင် String() ခံပြီး ရှာမည်
+    let track = window.allSavedTracks.find(t => String(t.id) === String(id));
     if (!track) return;
 
     if (window.renderedSavedTracks[id]) {
+        // Hide
         window.leafletMap.removeLayer(window.renderedSavedTracks[id]);
         delete window.renderedSavedTracks[id];
     } else {
+        // Show
         let trackColor = track.color || '#8b5cf6';
         let layer = L.polyline(track.coords, {color: trackColor, weight: 4, opacity: 0.8}).addTo(window.leafletMap);
         layer.bindTooltip(track.name, {sticky: true, direction: 'top'});
@@ -769,12 +772,18 @@ window.toggleTrackOnMap = function(id) {
 
 window.deleteTrack = function(id) {
     if(!confirm("Delete this track?")) return;
+    
     if (window.renderedSavedTracks[id]) {
         window.leafletMap.removeLayer(window.renderedSavedTracks[id]);
         delete window.renderedSavedTracks[id];
     }
+    
+    // 🔴 ပြင်ဆင်ချက်: Database ထဲက မူရင်း ID Type အမှန် (Number လား String လား) ကို ပြန်ရှာပြီးမှ ဖျက်မည်
+    let exactTrack = window.allSavedTracks.find(t => String(t.id) === String(id));
+    if (!exactTrack) return;
+
     let tx = window.trackDB.transaction(["tracks"], "readwrite");
-    tx.objectStore("tracks").delete(id);
+    tx.objectStore("tracks").delete(exactTrack.id);
     tx.oncomplete = () => window.loadTracksFromDB();
 };
 
