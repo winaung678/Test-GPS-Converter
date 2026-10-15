@@ -1342,6 +1342,7 @@ window.plotRecordedPointsOnMap = function() {
         ptMarker.addTo(window.recordedLayerGroup);
     });
     if (typeof window.forceMapLayerRedraw === 'function') window.forceMapLayerRedraw(window.recordedLayerGroup);
+    if (typeof window.updateMapPointTexts === 'function') window.updateMapPointTexts();
 };
 
 // ==========================================
