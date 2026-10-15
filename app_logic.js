@@ -564,19 +564,30 @@ window.onTrackColorChange = function(color) {
     window.syncTrackColorInputs(color);
 };
 
+// ၁။ Database တည်ဆောက်ခြင်း (ပိုမို ခိုင်မာသော စနစ်)
 const initTrackDB = () => {
-    let request = indexedDB.open("GPSConverterDB", 1); // User Data Protection
+    let request = indexedDB.open("GPSConverterTrackDB", 1);
+    
     request.onupgradeneeded = (e) => {
         let db = e.target.result;
         if (!db.objectStoreNames.contains("tracks")) {
             db.createObjectStore("tracks", { keyPath: "id" });
         }
     };
+    
     request.onsuccess = (e) => {
         window.trackDB = e.target.result;
-        window.loadTracksFromDB();
+        // DB ရပြီဆိုတာနဲ့ ရှိပြီးသား Track တွေကို အရင်ဆုံး လှမ်းခေါ်ပြမယ်
+        if (typeof window.loadTracksFromDB === 'function') {
+            window.loadTracksFromDB();
+        }
+    };
+    
+    request.onerror = (e) => {
+        console.error("Track Database Error:", e.target.error);
     };
 };
+// Page Load ဖြစ်တာနဲ့ DB ကို စတင်ခေါ်မည်
 initTrackDB();
 
 window.toggleTracking = function() {
@@ -644,25 +655,51 @@ window.cancelSaveTrack = function() {
 window.confirmSaveTrack = function() {
     let nameInp = document.getElementById('track_name_input').value.trim();
     let name = nameInp ? nameInp : `Track_${new Date().getHours()}${new Date().getMinutes()}`;
+    let trackId = new Date().getTime().toString();
     
     let trackObj = {
-        id: new Date().getTime().toString(),
+        id: trackId,
         name: name,
         date: new Date().toLocaleString(),
         color: window.getTrackColor(),
         coords: [...window.currentTrackCoords] 
     };
     
-    let tx = window.trackDB.transaction(["tracks"], "readwrite");
-    let store = tx.objectStore("tracks");
-    store.add(trackObj);
-    
-    tx.oncomplete = () => {
-        window.cancelSaveTrack(); 
-        document.getElementById('track_name_input').value = "";
-        window.loadTracksFromDB();
-        alert("Track saved successfully!");
-    };
+    // ချက်ချင်း Modal ပိတ်ပြီး ယာယီမျဉ်းကို ဖျောက်မည်
+    document.getElementById('saveTrackModal').style.display = 'none';
+    if (window.activeTrackLine && window.leafletMap) window.leafletMap.removeLayer(window.activeTrackLine);
+    window.currentTrackCoords = [];
+
+    if (!window.trackDB) {
+        alert("⚠️ Database is not ready. Please try again.");
+        return;
+    }
+
+    try {
+        let tx = window.trackDB.transaction(["tracks"], "readwrite");
+        let store = tx.objectStore("tracks");
+        store.add(trackObj);
+        
+        tx.oncomplete = () => {
+            document.getElementById('track_name_input').value = "";
+            window.loadTracksFromDB(); // ဇယားကို အသစ်ပြန်ခေါ်မည်
+            
+            // 🔴 ဖြည့်စွက်ချက်: Save ပြီးတာနဲ့ မြေပုံပေါ်မှာ ချက်ချင်း အလိုအလျောက် ပြန်ပေါ်လာအောင် လုပ်ပေးမည်
+            setTimeout(() => {
+                let trackPanel = document.getElementById('track_manager_panel');
+                if (trackPanel) trackPanel.style.display = 'block'; // Panel ကို အတင်းဖော်မည်
+                
+                // မြေပုံပေါ် Auto ဆွဲတင်မည်
+                if (typeof window.toggleTrackOnMap === 'function') {
+                    window.toggleTrackOnMap(trackId);
+                }
+            }, 300);
+
+            alert("✅ Track saved successfully!");
+        };
+    } catch (e) {
+        alert("⚠️ Error saving track: " + e.message);
+    }
 };
 
 window.loadTracksFromDB = function() {
@@ -688,23 +725,25 @@ window.renderTrackListUI = function() {
     
     let html = '';
     window.allSavedTracks.forEach(t => {
-        let isShowing = window.renderedSavedTracks[t.id] !== undefined;
+        // Track လေးတွေက Map ပေါ်မှာ ပြနေသလား စစ်မယ်
+        let isShowing = window.renderedSavedTracks && window.renderedSavedTracks[t.id] !== undefined;
         let btnColor = isShowing ? "#f59e0b" : "#10b981";
         let btnText = isShowing ? "🚫 Hide" : "👁️ Show";
         let trackColor = t.color || '#8b5cf6';
         
+        // 🔴 ဖုန်း Screen အသေးတွေမှာပါ သပ်သပ်ရပ်ရပ် ပေါ်အောင် Style ကို သေချာပြင်ထားပါတယ်
         html += `
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--input-border); padding:5px 0;">
-            <div style="flex:1; display:flex; align-items:center; gap:6px;">
-                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${trackColor}; border:1px solid rgba(0,0,0,0.2); flex-shrink:0;"></span>
-                <div>
-                    <b style="color:var(--primary); font-size:12px;">${t.name}</b><br>
-                    <span style="font-size:10px; color:var(--label-text);">${t.date} | Pts: ${t.coords.length}</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--input-border); padding:8px 5px;">
+            <div style="flex:1; display:flex; align-items:center; gap:8px;">
+                <span style="display:inline-block; width:14px; height:14px; border-radius:50%; background:${trackColor}; border:1.5px solid rgba(0,0,0,0.3); flex-shrink:0;"></span>
+                <div style="line-height:1.3;">
+                    <b style="color:var(--primary); font-size:13px;">${t.name}</b><br>
+                    <span style="font-size:10px; color:var(--label-text);">${t.date} | Pts: ${t.coords ? t.coords.length : 0}</span>
                 </div>
             </div>
-            <div style="display:flex; gap:5px;">
-                <button class="top-btn" style="background:${btnColor}; color:white; padding:4px 8px; font-size:11px;" onclick="toggleTrackOnMap('${t.id}')">${btnText}</button>
-                <button class="top-btn" style="background:#ef4444; color:white; padding:4px 8px; font-size:11px;" onclick="deleteTrack('${t.id}')">🗑️</button>
+            <div style="display:flex; gap:6px;">
+                <button class="top-btn" style="background:${btnColor}; color:white; padding:5px 10px; font-size:11px;" onclick="toggleTrackOnMap('${t.id}')">${btnText}</button>
+                <button class="top-btn" style="background:#ef4444; color:white; padding:5px 10px; font-size:11px;" onclick="deleteTrack('${t.id}')">🗑️</button>
             </div>
         </div>`;
     });
