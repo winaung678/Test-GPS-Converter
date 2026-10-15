@@ -1158,7 +1158,11 @@ window.refreshMapPointLayers = function(n) {
         if (!window.recordedLayerGroup) {
             window.recordedLayerGroup = L.layerGroup().addTo(window.leafletMap);
         } else if (!window.leafletMap.hasLayer(window.recordedLayerGroup)) {
-            window.leafletMap.addLayer(window.recordedLayerGroup);
+            // 🔴 Checkbox ဖွင့်ထားမှသာ Map ပေါ် ပြန်တင်မည်
+            let chkGpsPts = document.getElementById('tgl_gps_pts');
+            if (!chkGpsPts || chkGpsPts.checked) {
+                window.leafletMap.addLayer(window.recordedLayerGroup);
+            }
         }
         if (typeof window.plotRecordedPointsOnMap === 'function') window.plotRecordedPointsOnMap();
         window.forceMapLayerRedraw(window.recordedLayerGroup);
