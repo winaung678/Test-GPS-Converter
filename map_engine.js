@@ -1085,6 +1085,19 @@ window.toggleDxfLayers = function() {
         }
     }
 
+    // 🔴 အသစ်ထည့်ထားသောအပိုင်း: GPS Recorded Points အဖွင့်အပိတ် 
+    if (window.recordedLayerGroup) {
+        let chkGpsPts = document.getElementById('tgl_gps_pts');
+        if (chkGpsPts && chkGpsPts.checked) {
+            if (!window.leafletMap.hasLayer(window.recordedLayerGroup)) window.leafletMap.addLayer(window.recordedLayerGroup);
+            if (!window._prevChkGpsPts) window.zoomToCustomLayer(window.recordedLayerGroup);
+            window._prevChkGpsPts = true;
+        } else {
+            window.leafletMap.removeLayer(window.recordedLayerGroup);
+            window._prevChkGpsPts = false;
+        }
+    }
+
     let chkSoTexts = document.getElementById('tgl_so_texts');
     let mapCont = document.getElementById('map_container');
     if (chkSoTexts && mapCont) {
