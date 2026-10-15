@@ -2178,7 +2178,7 @@ window.exportVolDXF = function() {
 window.pointTextCanvasLayer = null;
 
 // ==========================================
-// 🔴 HIGH PERFORMANCE POINT TEXT RENDERING (COMBINED SO & TOPO)
+// 🔴 HIGH PERFORMANCE POINT TEXT RENDERING (COMBINED)
 // ==========================================
 window.pointTextCanvasLayer = null;
 
@@ -2192,31 +2192,42 @@ window.updateMapPointTexts = function() {
 
     let chkName = document.getElementById('tgl_show_pt_name');
     let chkZ = document.getElementById('tgl_show_z_val');
-    let chkSo = document.getElementById('tgl_so_texts'); // 🔴 SO Text Checkbox ကိုပါ ယူမည်
+    let chkSo = document.getElementById('tgl_so_texts'); 
+    let chkGpsName = document.getElementById('tgl_gps_name'); // 🔴 GPS Name Checkbox
     
     let showTopo = (chkName && chkName.checked) || (chkZ && chkZ.checked);
     let showSo = (chkSo && chkSo.checked);
+    let showGps = (chkGpsName && chkGpsName.checked); // 🔴 GPS စာသား ပြ/မပြ
 
-    if (!showTopo && !showSo) return; // နှစ်ခုလုံး ပိတ်ထားရင် ဘာမှ မဆွဲပါ
+    if (!showTopo && !showSo && !showGps) return; 
 
     let textsData = [];
     let datum = document.getElementById('topo_datum') ? document.getElementById('topo_datum').value : "WGS_LL";
 
-    // 1. SO Points များကို အရင်ဆွဲမည်
+    // 1. SO Points များကို ဆွဲမည်
     if (showSo && window.setOutPoints) {
         window.setOutPoints.forEach(pt => {
             if (!isNaN(pt.lat) && !isNaN(pt.lon) && pt.p) {
-                textsData.push({
-                    lat: pt.lat, lon: pt.lon, text: `[${pt.p}]`, color: '#1e3a8a', align: 'left', isContour: false
-                });
+                textsData.push({ lat: pt.lat, lon: pt.lon, text: `[${pt.p}]`, color: '#1e3a8a', align: 'left', isContour: false });
             }
         });
     }
 
-    // 2. Topo / Volume Points များကို ဆက်ဆွဲမည်
+    // 2. GPS Recorded Points များကို ဆွဲမည် (အသစ်)
+    if (showGps && window.recordedPointsBank) {
+        window.recordedPointsBank.forEach(pt => {
+            let pLat = pt.wLa !== undefined ? pt.wLa : pt.lat;
+            let pLon = pt.wLo !== undefined ? pt.wLo : pt.lon;
+            if (!isNaN(pLat) && !isNaN(pLon) && pt.p) {
+                // အနီရောင်ရင့်ရင့်လေးနဲ့ ဆွဲပေးထားပါမယ်
+                textsData.push({ lat: pLat, lon: pLon, text: `[${pt.p}]`, color: '#b91c1c', align: 'left', isContour: false });
+            }
+        });
+    }
+
+    // 3. Topo / Volume Points များကို ဆွဲမည်
     if (showTopo) {
         let pointsToProcess = [];
-        // လောလောဆယ် Topo ဖွင့်ထားမှ ဆွဲမလား၊ Layer အမြဲဆွဲမလား (Layer ဖွင့်ထားရင် အကုန်ဆွဲမည်)
         if (window.topoPoints) pointsToProcess = pointsToProcess.concat(window.topoPoints);
         if (window.volPoints) pointsToProcess = pointsToProcess.concat(window.volPoints);
         if (window.volSurface2Points) pointsToProcess = pointsToProcess.concat(window.volSurface2Points);
@@ -2224,14 +2235,12 @@ window.updateMapPointTexts = function() {
         pointsToProcess.forEach(pt => {
             let lat = pt.n, lon = pt.e; 
             if (datum === 'LOCAL') {
-                lat = (pt.n - (window.localOffsetN || 0)) / 100000;
-                lon = (pt.e - (window.localOffsetE || 0)) / 100000;
+                lat = (pt.n - (window.localOffsetN || 0)) / 100000; lon = (pt.e - (window.localOffsetE || 0)) / 100000;
             } else if (datum === "SVY21") { 
                 let r = calc_v2_rev(pt.e, pt.n); lat = r.lat; lon = r.lon; 
             } else if (datum.startsWith("MM")) {
                 let zone = parseInt(datum.slice(-2)); let r = m_inverse(pt.e, pt.n, zone, m_EVE); 
-                let x = m_llh2xyz(r.lat, r.lon, 0, m_EVE); let w = m_xyz2llh(x.x-m_DX, x.y-m_DY, x.z-m_DZ, m_WGS);
-                lat = w.lat; lon = w.lon;
+                let x = m_llh2xyz(r.lat, r.lon, 0, m_EVE); let w = m_xyz2llh(x.x-m_DX, x.y-m_DY, x.z-m_DZ, m_WGS); lat = w.lat; lon = w.lon;
             } else if (datum.startsWith("WGS_UTM")) { 
                 let zone = parseInt(datum.slice(-2)); let i = m_inverse(pt.e, pt.n, zone, m_WGS); lat = i.lat; lon = i.lon; 
             } else if (datum === "GLOBAL_UTM") {
@@ -2246,9 +2255,7 @@ window.updateMapPointTexts = function() {
                 if (chkZ && chkZ.checked && pt.z !== undefined) txt += pt.z.toFixed(3);
 
                 if (txt.trim() !== "") {
-                    textsData.push({
-                        lat: lat, lon: lon, text: txt.trim(), color: '#1e3a8a', align: 'left', isContour: false
-                    });
+                    textsData.push({ lat: lat, lon: lon, text: txt.trim(), color: '#1e3a8a', align: 'left', isContour: false });
                 }
             }
         });
