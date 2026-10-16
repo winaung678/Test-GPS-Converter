@@ -1346,7 +1346,7 @@ window.plotPointsOnMap = function() {
             setTimeout(processChunk, 15);
         } else {
             if (typeof window.ensureSoPointsLayerVisible === 'function') window.ensureSoPointsLayerVisible();
-            if (typeof window.updateSoMapPointTexts === 'function') window.updateSoMapPointTexts();
+            if (typeof window.updateMapPointTexts === 'function') window.updateMapPointTexts();
         }
     }
     processChunk();
