@@ -545,7 +545,7 @@ window.addEventListener("popstate", function(e) {
 // ==========================================
 // --- GPS TRACKING & ROUTE MANAGER (IndexedDB) ---
 // ==========================================
-
+window.renderedSavedTracks = {}; 
 window.getTrackColor = function() {
     let inp = document.getElementById('track_color_input') || document.getElementById('track_save_color_input');
     return (inp && inp.value) ? inp.value : (localStorage.getItem('pref_track_color') || '#3b82f6');
