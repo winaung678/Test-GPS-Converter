@@ -1823,14 +1823,19 @@ function runVolumeWorker(triangles, boundaryPts, targetLevels, baseType, customG
     const blob = new Blob([volumeWorkerScript], { type: 'application/javascript' });
     const worker = new Worker(URL.createObjectURL(blob));
 
-    worker.onmessage = function(e) {
-        if (e.data.type === 'progress') {
-            if (onProgress) onProgress(e.data.percent);
-        } else if (e.data.type === 'done') {
-            worker.terminate(); 
-            if (onComplete) onComplete(e.data.result);
-        }
-    };
+    // အသစ်
+let blobUrl = URL.createObjectURL(blob);
+const worker = new Worker(blobUrl);
+
+worker.onmessage = function(e) {
+    if (e.data.type === 'progress') {
+        if (onProgress) onProgress(e.data.percent);
+    } else if (e.data.type === 'done') {
+        worker.terminate(); 
+        URL.revokeObjectURL(blobUrl); // Memory လွတ်သွားအောင် ရှင်းပေးခြင်း
+        if (onComplete) onComplete(e.data.result);
+    }
+};
 
     worker.postMessage({
         triangles: triangles, boundaryPts: boundaryPts, targetLevels: targetLevels, targetTriangles: targetTriangles,
