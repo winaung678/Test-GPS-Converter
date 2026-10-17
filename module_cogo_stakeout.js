@@ -144,6 +144,10 @@ window.triggerClearRecords = function() {
         if (statBox) { statBox.style.display = 'none'; statBox.innerHTML = ''; }
         ['v2_man_stat', 'm_man_stat', 'g_man_stat'].forEach(id => { let e = document.getElementById(id); if (e) e.innerHTML = ''; });
         if (window.recordedLayerGroup) window.recordedLayerGroup.clearLayers();
+        
+        // 🔴 ဒီနေရာလေးမှာ အောက်က တစ်ကြောင်းကို အသစ် ဝင်ထည့်ပေးလိုက်ပါ
+        if (typeof window.updateMapPointTexts === 'function') window.updateMapPointTexts();
+
         alert("All saved points have been cleared!");
     }
 };
