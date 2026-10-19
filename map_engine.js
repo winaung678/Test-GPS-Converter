@@ -463,7 +463,10 @@ window.buildSavedPointPopup = function(lat, lon, opts) {
     }
     
     if (coords.showLocal) {
-        html += `<b style="font-size:11px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:12px; color:#b91c1c; display:block; margin:2px 0;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}<br>Z: ${zVal.toFixed(3)}</b>`;
+        let sfVal = window.getPointScaleFactor(coords.datumLabel, coords.localE);
+        let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(6)}</span>` : "";
+
+        html += `<b style="font-size:11px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:12px; color:#b91c1c; display:block; margin:2px 0;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}<br>Z: ${zVal.toFixed(3)}${sfHtml}</b>`;
     } else {
         html += `<b style="font-size:10px; color:#ef4444; background:#fee2e2; padding:2px; border-radius:3px; display:block; margin-bottom:2px;">⚠️ Out of Bounds</b>`;
         html += `<b style="font-size:12px; color:#b91c1c;">Z: ${zVal.toFixed(3)}</b>`;
@@ -564,7 +567,11 @@ window.initMap = function() {
         let popupContent = `<div style="text-align:center; padding: 5px;">`;
         if (snapResult.snapped) { popupContent += `<div style="background:#10b981; color:white; font-size:11px; font-weight:bold; padding:3px; border-radius:4px; margin-bottom:5px;">🧲 Snapped to DXF Node</div>`; }
 
-        if (coords.showLocal) { popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}</b><hr style="margin:5px 0; border:0.5px solid #ccc;">`; }
+        if (coords.showLocal) { 
+            let sfVal = window.getPointScaleFactor(coords.datumLabel, coords.localE);
+            let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(6)}</span>` : "";
+            popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}${sfHtml}</b><hr style="margin:5px 0; border:0.5px solid #ccc;">`; 
+        }
         else { popupContent += `<b style="font-size:11px; color:#ef4444; background:#fee2e2; padding:3px; border-radius:4px; display:block; margin-bottom:5px;">⚠️ Out of Local Bounds</b>`; }
 
         popupContent += `<b style="font-size:12px; color:#1e3a8a;">Lat: ${finalLat.toFixed(7)}<br>Lon: ${finalLon.toFixed(7)}</b>`;
