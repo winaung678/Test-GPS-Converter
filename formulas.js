@@ -452,3 +452,23 @@ function generateContours(points, triangles, minorInt, majorInt) {
     }
     return polylines; 
 }
+
+// ==========================================
+// --- SCALE FACTOR (SF) CALCULATION ---
+// ==========================================
+window.getPointScaleFactor = function(datumLabel, localE) {
+    if (!datumLabel || datumLabel === "WGS_LL" || datumLabel === "LOCAL GRID") return null;
+
+    let k0 = 0.9996; // UTM နဲ့ MM2000 ရဲ့ Central Scale Factor
+    let falseE = 500000.0;
+    let R = 6378137.0; // ကမ္ဘာကြီးရဲ့ အချင်းဝက် (Radius)
+
+    if (datumLabel === "SVY21") {
+        k0 = 1.000000;
+        falseE = 28001.642;
+    }
+
+    let deltaE = localE - falseE;
+    let sf = k0 * (1 + Math.pow(deltaE, 2) / (2 * Math.pow(R, 2)));
+    return sf;
+};
