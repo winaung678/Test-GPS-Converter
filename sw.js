@@ -1,4 +1,4 @@
-const CACHE_NAME = 'survey-pro-cache-v9.1.5'; 
+const CACHE_NAME = 'survey-pro-cache-v9.1.6'; 
 
 const urlsToCache = [
   './',
