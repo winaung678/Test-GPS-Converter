@@ -108,9 +108,7 @@ window.showTopoPointsOnMapOnly = function() {
 
                 if (!isActionTaken) {
                     let pName = pt.p ? `<b style="color:#1e40af; font-size:13px;">[ ${pt.p} ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">` : '';
-                   let sfVal = (datum !== 'LOCAL' && datum !== 'WGS_LL') ? window.getPointScaleFactor(datum, pt.e) : null;
-let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(6)}</span>` : "";
- = `<div style="text-align:center; line-height:1.4; padding:2px;">${pName}<b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}${sfHtml}</b></div>`;
+                    let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">${pName}<b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}</b></div>`;
                     L.popup().setLatLng(e.latlng).setContent(popupHtml).openOn(window.leafletMap);
                 }
             });
@@ -933,12 +931,10 @@ function volShowPointsOnMap() {
 
                 if (!isActionTaken) {
                     let pName = pt.p ? `<b style="color:#1e40af; font-size:13px;">[ ${pt.p} ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">` : '';
-                    let sfVal = (datum !== 'LOCAL' && datum !== 'WGS_LL') ? window.getPointScaleFactor(datum, pt.e) : null;
-let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(6)}</span>` : "";
-let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">
-    ${pName}
-    <b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}${sfHtml}</b>
-</div>`;
+                    let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">
+                        ${pName}
+                        <b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}</b>
+                    </div>`;
                     L.popup().setLatLng(e.latlng).setContent(popupHtml).openOn(window.leafletMap);
                 }
             });
@@ -1449,12 +1445,10 @@ window.volShowSurface2OnMap = function() {
                 }
 
                 if (!isActionTaken) {
-                   let sfVal = (datum !== 'LOCAL' && datum !== 'WGS_LL') ? window.getPointScaleFactor(datum, pt.e) : null;
-let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(6)}</span>` : "";
-let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">
-    <b style="color:#ea580c; font-size:13px;">[ Surface 2 Pt ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">
-    <b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}${sfHtml}</b>
-</div>`;
+                    let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">
+                        <b style="color:#ea580c; font-size:13px;">[ Surface 2 Pt ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">
+                        <b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}</b>
+                    </div>`;
                     L.popup().setLatLng(e.latlng).setContent(popupHtml).openOn(window.leafletMap);
                 }
             });
