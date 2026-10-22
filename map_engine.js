@@ -1,83 +1,15 @@
 // ==========================================
 // --- MEASURE TOOL (OPTIMIZED NO-GHOST) ---
 // ==========================================
-
-window.measureDistMode = 'grid'; 
-
-window.toggleMeasureDistMode = function(e) {
-    if(e) L.DomEvent.stopPropagation(e);
-    window.measureDistMode = (window.measureDistMode === 'grid') ? 'ground' : 'grid';
-    window.updateMeasureModeButton();
-    if (window.activeMeasureSession) window.refreshMeasureVisuals();
-};
-
-window.updateMeasureModeButton = function() {
-    let modeBtn = document.getElementById('measureModeBtn');
-    if (!modeBtn) return;
-
-    let isLocal = false;
-    
-    if (window.activeApp === 4) {
-        let topoTool = document.getElementById('cogo_topo_tool');
-        let volTool = document.getElementById('cogo_vol_tool');
-        if ((topoTool && !topoTool.classList.contains('hidden')) || (volTool && !volTool.classList.contains('hidden'))) {
-            let datum = document.getElementById('topo_datum') ? document.getElementById('topo_datum').value : "WGS_LL";
-            if (datum === 'LOCAL') isLocal = true;
-        }
-    }
-
-    if (isLocal) {
-        modeBtn.innerHTML = "<span style='font-size:13px; margin-bottom:2px; display:block;'>📐</span>L<br>O<br>C";
-        modeBtn.style.background = "#64748b"; 
-        modeBtn.style.borderColor = "#475569";
-        modeBtn.style.pointerEvents = "none"; 
-    } else {
-        modeBtn.innerHTML = window.measureDistMode === 'grid' 
-            ? "<span style='font-size:13px; margin-bottom:2px; display:block;'>🌐</span>G<br>R<br>I<br>D" 
-            : "<span style='font-size:13px; margin-bottom:2px; display:block;'>📐</span>G<br>N<br>D";
-        modeBtn.style.background = window.measureDistMode === 'grid' ? "#3b82f6" : "#10b981";
-        modeBtn.style.borderColor = window.measureDistMode === 'grid' ? "#2563eb" : "#059669";
-        modeBtn.style.pointerEvents = "auto";
-    }
-    modeBtn.style.width = "28px"; 
-};
-
 function calcSegmentDistance(lat1, lon1, lat2, lon2) {
-    let isLocal = false;
-    
-    // Topo/Vol tool ထဲမှာ Local Grid ရွေးထားသလား စစ်ဆေးခြင်း
-    if (window.activeApp === 4) {
-        let topoTool = document.getElementById('cogo_topo_tool');
-        let volTool = document.getElementById('cogo_vol_tool');
-        if ((topoTool && !topoTool.classList.contains('hidden')) || (volTool && !volTool.classList.contains('hidden'))) {
-            let datum = document.getElementById('topo_datum') ? document.getElementById('topo_datum').value : "WGS_LL";
-            if (datum === 'LOCAL') isLocal = true;
-        }
-    }
-    
-    // Point ၂ ခုလုံးရဲ့ N, E နဲ့ Datum တွေကို ယူခြင်း
     let p1 = window.getDatumCoordsForLatLon(lat1, lon1);
     let p2 = window.getDatumCoordsForLatLon(lat2, lon2);
 
-    // Point ၂ ခုလုံးက Out of Bounds မဖြစ်ဘူးဆိုရင် SF သုံးပြီး တွက်မယ်
     if (p1.showLocal && p2.showLocal) {
-        // ၁။ Grid Distance အရင်ရှာမယ်
-        let gridDist = Math.hypot(p2.localE - p1.localE, p2.localN - p1.localN);
-
-        // ၂။ Mode ကို စစ်ပြီး အဖြေထုတ်မယ်
-        if (isLocal || window.measureDistMode === 'grid') {
-            return gridDist; // Grid Mode သို့မဟုတ် Local ဆိုရင် Grid ကိုပဲ ပြမယ်
-        } else { 
-            // ၃။ Ground Mode ဖြစ်နေရင် SF နဲ့ စားပြီး အတိအကျ ပြန်တွက်မယ်
-            let sf1 = window.getPointScaleFactor(p1.datumLabel, p1.localE) || 1.0;
-            let sf2 = window.getPointScaleFactor(p2.datumLabel, p2.localE) || 1.0;
-            let avgSF = (sf1 + sf2) / 2.0; // Average SF ယူခြင်း
-            
-            return gridDist / avgSF; // Ground Distance = Grid / Average SF
-        }
+        // Grid Distance ကိုသာ တွက်ချက်ပြသမည်
+        return Math.hypot(p2.localE - p1.localE, p2.localN - p1.localN);
     }
-
-    // တကယ်လို့ ပွိုင့်တွေက Out of bounds ဧရိယာပြင်ပ ဖြစ်နေရင်တော့ မူလ Haversine နဲ့ပဲ အကြမ်းဖျင်းတွက်ပေးမယ်
+    // Out of bounds ဖြစ်နေပါက Haversine (Curve) အကြမ်းဖျင်းဖြင့်တွက်မည်
     return calcDistance(lat1, lon1, lat2, lon2);
 }
 
@@ -319,9 +251,7 @@ window.toggleMeasureMode = function() {
     window.isMeasuring = !window.isMeasuring;
     let btn = document.getElementById('measureBtn');
     
-    let modeBtnId = 'measureModeBtn';
-    let existingModeBtn = document.getElementById(modeBtnId);
-    
+    // Undo ခလုတ်အတွက်သာ ချန်ထားသည်
     let undoBtnId = 'measureUndoBtn';
     let existingUndoBtn = document.getElementById(undoBtnId);
 
@@ -329,25 +259,6 @@ window.toggleMeasureMode = function() {
         btn.style.background = "#dc2626"; btn.style.borderColor = "#991b1b";
         if (!window.leafletMap) return;
         startActiveMeasureSession();
-        
-        if (!existingModeBtn) {
-            let modeBtn = document.createElement('button');
-            modeBtn.id = modeBtnId;
-            modeBtn.className = "map-loc-btn";
-            modeBtn.style.bottom = "70px"; 
-            modeBtn.style.right = "70px"; 
-            modeBtn.style.width = "25px";
-            modeBtn.style.padding = "5px 0";
-            modeBtn.style.fontSize = "11px";
-            modeBtn.style.fontWeight = "bold";
-            modeBtn.style.lineHeight = "1.2";
-            modeBtn.style.borderRadius = "8px";
-            modeBtn.onclick = window.toggleMeasureDistMode;
-            document.getElementById('map_container').appendChild(modeBtn); 
-        } else {
-            existingModeBtn.style.display = 'block';
-        }
-        window.updateMeasureModeButton();
 
         if (!existingUndoBtn) {
             let undoBtn = document.createElement('button');
@@ -372,7 +283,6 @@ window.toggleMeasureMode = function() {
     } else {
         btn.style.background = "#f59e0b"; btn.style.borderColor = "#d97706";
         stopMeasureMode();
-        if (existingModeBtn) existingModeBtn.style.display = 'none';
         if (existingUndoBtn) existingUndoBtn.style.display = 'none'; 
     }
 };
@@ -480,10 +390,8 @@ window.buildSavedPointPopup = function(lat, lon, opts) {
     }
     
     if (coords.showLocal) {
-        let sfVal = window.getPointScaleFactor(coords.datumLabel, coords.localE);
-        let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(8)}</span>` : "";
-
-        html += `<b style="font-size:11px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:12px; color:#b91c1c; display:block; margin:2px 0;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}<br>Z: ${zVal.toFixed(3)}${sfHtml}</b>`;
+       
+        html += `<b style="font-size:11px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:12px; color:#b91c1c; display:block; margin:2px 0;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}<br>Z: ${zVal.toFixed(3)}</b>`;
     } else {
         html += `<b style="font-size:10px; color:#ef4444; background:#fee2e2; padding:2px; border-radius:3px; display:block; margin-bottom:2px;">⚠️ Out of Bounds</b>`;
         html += `<b style="font-size:12px; color:#b91c1c;">Z: ${zVal.toFixed(3)}</b>`;
@@ -585,9 +493,7 @@ window.initMap = function() {
         if (snapResult.snapped) { popupContent += `<div style="background:#10b981; color:white; font-size:11px; font-weight:bold; padding:3px; border-radius:4px; margin-bottom:5px;">🧲 Snapped to DXF Node</div>`; }
 
         if (coords.showLocal) { 
-            let sfVal = window.getPointScaleFactor(coords.datumLabel, coords.localE);
-            let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(8)}</span>` : "";
-            popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}${sfHtml}</b><hr style="margin:5px 0; border:0.5px solid #ccc;">`; 
+            popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}</b><hr style="margin:5px 0; border:0.5px solid #ccc;">`; 
         }
         else { popupContent += `<b style="font-size:11px; color:#ef4444; background:#fee2e2; padding:3px; border-radius:4px; display:block; margin-bottom:5px;">⚠️ Out of Local Bounds</b>`; }
 
@@ -1370,7 +1276,7 @@ window.plotPointsOnMap = function() {
             setTimeout(processChunk, 15);
         } else {
             if (typeof window.ensureSoPointsLayerVisible === 'function') window.ensureSoPointsLayerVisible();
-            if (typeof window.updateSoMapPointTexts === 'function') window.updateSoMapPointTexts();
+            if (typeof window.updateMapPointTexts === 'function') window.updateMapPointTexts();
         }
     }
     processChunk();

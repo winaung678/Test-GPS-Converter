@@ -40,8 +40,8 @@ window.loadTopoCSV = function(event) {
             let cols = line.split(','); if (cols.length < 4) continue;
             let pName = cols[0].trim(); let n, e_val;
             if (isPENZD) { e_val = parseFloat(cols[1]); n = parseFloat(cols[2]); } else { n = parseFloat(cols[1]); e_val = parseFloat(cols[2]); }
-            let z = parseFloat(cols[3]); let code_val = cols.length > 4 ? cols[4].trim() : "";
-            if (!isNaN(n) && !isNaN(e_val) && !isNaN(z)) { window.topoPoints.push({ p: pName, n: n, e: e_val, z: z, d: code_val }); }
+            let z = parseFloat(cols[3]) || 0.0; let code_val = cols.length > 4 ? cols[4].trim() : "";
+            if (!isNaN(n) && !isNaN(e_val)) { window.topoPoints.push({ p: pName, n: n, e: e_val, z: z, d: code_val }); }
         }
         if (window.topoPoints.length < 3) { statBox.style.color = '#ef4444'; statBox.innerText = `❌ Not enough points! Minimum 3 required.`; return; }
         statBox.style.color = '#10b981'; statBox.innerText = `✅ Loaded ${window.topoPoints.length} points (${isPENZD ? 'PENZD' : 'PNEZD'}).`;
@@ -108,9 +108,8 @@ window.showTopoPointsOnMapOnly = function() {
 
                 if (!isActionTaken) {
                     let pName = pt.p ? `<b style="color:#1e40af; font-size:13px;">[ ${pt.p} ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">` : '';
-                    let sfVal = (datum !== 'LOCAL' && datum !== 'WGS_LL') ? window.getPointScaleFactor(datum, pt.e) : null;
-let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(8)}</span>` : "";
-let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">${pName}<b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}${sfHtml}</b></div>`;
+                    // ပြောင်းလဲပြီးသား Code (အစားထိုးရန်)
+let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">${pName}<b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}</b></div>`;
                     L.popup().setLatLng(e.latlng).setContent(popupHtml).openOn(window.leafletMap);
                 }
             });
@@ -933,12 +932,8 @@ function volShowPointsOnMap() {
 
                 if (!isActionTaken) {
                     let pName = pt.p ? `<b style="color:#1e40af; font-size:13px;">[ ${pt.p} ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">` : '';
-                    let sfVal = (datum !== 'LOCAL' && datum !== 'WGS_LL') ? window.getPointScaleFactor(datum, pt.e) : null;
-let sfHtml = sfVal ? `<br><span style="font-size:11px; color:#475569;">SF: ${sfVal.toFixed(8)}</span>` : "";
-let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">
-    ${pName}
-    <b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}${sfHtml}</b>
-</div>`;
+                    // ပြောင်းလဲပြီးသား Code (အစားထိုးရန်)
+let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">${pName}<b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}</b></div>`;
                     L.popup().setLatLng(e.latlng).setContent(popupHtml).openOn(window.leafletMap);
                 }
             });
