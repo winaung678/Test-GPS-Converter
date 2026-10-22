@@ -1342,3 +1342,52 @@ window.toggleDarkMode = function() {
         if (chk && chk.checked) window.leafletMap.addLayer(window.utmZonesLayer);
     }
 };
+
+// ==========================================
+// --- EQUATOR LINE (LATITUDE 0) ---
+// ==========================================
+window.equatorLayer = null;
+
+window.drawEquator = function() {
+    if (!window.leafletMap) return;
+    
+    if (window.equatorLayer) {
+        window.leafletMap.removeLayer(window.equatorLayer);
+    }
+    
+    window.equatorLayer = L.layerGroup();
+    
+    // အီကွေတာမျဉ်း (Latitude 0, Longitude -180 မှ 180 ထိ) ကို အနီရောင် မျဉ်းပြတ်ဖြင့် ဆွဲမည်
+    let eqLine = L.polyline([[0, -180], [0, 180]], {
+        color: '#ef4444', 
+        weight: 2.5, 
+        dashArray: '8, 8', 
+        opacity: 0.9, 
+        interactive: false
+    });
+    window.equatorLayer.addLayer(eqLine);
+
+    // မြေပုံရွှေ့တိုင်း စာသားမြင်ရအောင် Longitude ကွာဟချက်အလိုက် စာသားများ ထည့်မည်
+    let eqLons = [-150, -90, -30, 30, 90, 150];
+    eqLons.forEach(lon => {
+        let labelIcon = L.divIcon({
+            className: 'equator-label',
+            html: `<div style="color:#ef4444; font-weight:bold; font-size:14px; text-shadow: 1px 1px 2px white, -1px -1px 2px white;">Equator (0°)</div>`,
+            iconSize: [80, 20], iconAnchor: [40, 10]
+        });
+        let marker = L.marker([0, lon], { icon: labelIcon, interactive: false });
+        window.equatorLayer.addLayer(marker);
+    });
+};
+
+window.toggleEquator = function() {
+    if (!window.leafletMap) return;
+    let chk = document.getElementById('tgl_equator');
+    
+    if (chk && chk.checked) {
+        if (!window.equatorLayer) { window.drawEquator(); }
+        if (!window.leafletMap.hasLayer(window.equatorLayer)) { window.leafletMap.addLayer(window.equatorLayer); }
+    } else {
+        if (window.equatorLayer && window.leafletMap.hasLayer(window.equatorLayer)) { window.leafletMap.removeLayer(window.equatorLayer); }
+    }
+};

@@ -143,10 +143,11 @@
             <div class="card-body">
                 <div id="v2_gps_box" class="gps-box hidden">
                     <div class="gps-row"><span style="font-size:11px;font-weight:bold;color:#10b981;">Tracking Mode ON</span></div>
-                    <div class="gps-row">
-                        <span id="v2_gps_stat" class="gps-status">H.Acc: --</span>
+                    <div class="gps-row" style="display:flex; gap:5px; width: 100%;">
+                        <span id="v2_gps_stat" class="gps-status" style="flex:1; margin:0;">H.Acc: --</span>
+                        <span id="v2_v_acc" class="gps-status" style="flex:1; margin:0; background:#3b82f6;">V.Acc: --</span>
+                        <span id="v2_sat" class="gps-status" style="flex:0.8; margin:0; background:#8b5cf6;">🛰️ Sat: --</span>
                     </div>
-                    <div class="gps-row"><span id="v2_dop_info" class="gps-status" style="background:#3b82f6;">PDOP: -- | VDOP: --</span></div>
                     <div class="z-badge" id="v2_z_val">MSL: --.--- m</div>
                     <div class="geoid-text" id="v2_raw_alt" style="color:#d97706; font-weight:bold;">Raw GPS Alt: --.--- m</div>
                     <div class="geoid-text" id="v2_geoid_val">Geoid (N): --.--- m</div>
@@ -190,10 +191,11 @@
             <div class="card-body">
                 <div id="m_gps_box" class="gps-box hidden">
                     <div class="gps-row"><span style="font-size:11px;font-weight:bold;color:#10b981;">Tracking Mode ON</span></div>
-                    <div class="gps-row">
-                        <span id="m_gps_stat" class="gps-status">H.Acc: --</span>
+                    <div class="gps-row" style="display:flex; gap:5px; width: 100%;">
+                        <span id="m_gps_stat" class="gps-status" style="flex:1; margin:0;">H.Acc: --</span>
+                        <span id="m_v_acc" class="gps-status" style="flex:1; margin:0; background:#3b82f6;">V.Acc: --</span>
+                        <span id="m_sat" class="gps-status" style="flex:0.8; margin:0; background:#8b5cf6;">🛰️ Sat: --</span>
                     </div>
-                    <div class="gps-row"><span id="m_dop_info" class="gps-status" style="background:#3b82f6;">PDOP: -- | VDOP: --</span></div>
                     <div class="z-badge" id="m_z_val">MSL: --.--- m</div>
                     <div class="geoid-text" id="m_raw_alt" style="color:#d97706; font-weight:bold;">Raw GPS Alt: --.--- m</div>
                     <div class="geoid-text" id="m_geoid_val">Geoid (N): --.--- m</div>
@@ -241,10 +243,11 @@
             <div class="card-body">
                 <div id="g_gps_box" class="gps-box hidden">
                     <div class="gps-row"><span style="font-size:11px;font-weight:bold;color:#10b981;">Tracking Mode ON</span></div>
-                    <div class="gps-row">
-                        <span id="g_gps_stat" class="gps-status">H.Acc: --</span>
+                    <div class="gps-row" style="display:flex; gap:5px; width: 100%;">
+                        <span id="g_gps_stat" class="gps-status" style="flex:1; margin:0;">H.Acc: --</span>
+                        <span id="g_v_acc" class="gps-status" style="flex:1; margin:0; background:#3b82f6;">V.Acc: --</span>
+                        <span id="g_sat" class="gps-status" style="flex:0.8; margin:0; background:#8b5cf6;">🛰️ Sat: --</span>
                     </div>
-                    <div class="gps-row"><span id="g_dop_info" class="gps-status" style="background:#3b82f6;">PDOP: -- | VDOP: --</span></div>
                     <div class="z-badge" id="g_z_val" style="color:#0f766e; border-color:rgba(15,118,110,0.3); background:rgba(15,118,110,0.1);">MSL: --.--- m</div>
                     <div class="geoid-text" id="g_raw_alt" style="color:#d97706; font-weight:bold;">Raw GPS Alt: --.--- m</div>
                     <div class="geoid-text" id="g_geoid_val">Geoid (N): --.--- m</div>
@@ -343,6 +346,13 @@
                     <button class="btn-action" style="background:#ef4444; flex:0.4; padding:12px; height:max-content;" onclick="stopNavigation()">🛑 Stop</button>
                 </div>
                 <div class="setout-panel" style="margin-top:10px;">
+                    <!-- 🔴 အသစ်ထည့်ထားသော Set Out GPS Status -->
+                    <div style="display:flex; gap:5px; margin-bottom:10px; justify-content:center;">
+                        <span id="so_gps_stat" class="gps-status" style="margin:0; padding:3px 8px; font-size:11px;">H.Acc: --</span>
+                        <span id="so_v_acc" class="gps-status" style="margin:0; padding:3px 8px; font-size:11px; background:#3b82f6;">V.Acc: --</span>
+                        <span id="so_sat" class="gps-status" style="margin:0; padding:3px 8px; font-size:11px; background:#8b5cf6;">🛰️ Sat: --</span>
+                    </div>
+                    
                     <div style="font-size:14px;font-weight:bold;color:var(--label-text);" id="so_guidance_text">Waiting for Target...</div>
                     <div class="dist-text" id="so_dist">0.000 m</div>
                     <div class="arrow-box"><div class="arrow-icon" id="so_arrow">⬆</div></div>
@@ -1057,6 +1067,7 @@
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#ea580c;"><input type="checkbox" id="tgl_surf2_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 🟠 Surf-2 Pts</label> 
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#0ea5e9;"><input type="checkbox" id="tgl_vol_bdys" checked onchange="if(typeof toggleVolBdyLayer==='function') toggleVolBdyLayer()"> 🟦 Vol BDYs</label>
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#2563eb;"><input type="checkbox" id="tgl_utm_zones" onchange="if(typeof toggleUTMZones==='function') toggleUTMZones()"> 🌐 UTM Zones</label>
+                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#ef4444;"><input type="checkbox" id="tgl_equator" onchange="if(typeof toggleEquator==='function') toggleEquator()"> ➖ Equator Line</label>
                     
                     <!-- 🔴 အသစ်ထည့်ထားသော GPS အမှတ်နှင့် နာမည် အဖွင့်အပိတ် Checkbox (၂) ခု -->
                     <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#b91c1c;"><input type="checkbox" id="tgl_gps_pts" checked onchange="if(typeof toggleDxfLayers==='function') toggleDxfLayers()"> 📍 GPS Pts</label>

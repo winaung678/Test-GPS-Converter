@@ -381,8 +381,9 @@ window.toggleGlobalGPS = function() {
         window.toggleInputLock(false); window.resetBM('v2'); window.resetBM('m'); window.resetBM('g');
         window.currentRawAlt = 0; window.appliedPoleH = 0; window.latest_local_N = 0; window.latest_local_E = 0; window.latest_wgs_N = 0; window.latest_wgs_E = 0; window.latest_Z = 0; window.latest_lat = 0; window.latest_lon = 0; window.currentGeoidN = 0; window.currentGeoidModel = "Unknown";
         
-        document.getElementById('v2_gps_stat').innerText = "H: -- | V: --"; document.getElementById('m_gps_stat').innerText = "H: -- | V: --"; document.getElementById('g_gps_stat').innerText = "H: -- | V: --";
-        document.getElementById('v2_dop_info').innerText = "PDOP: -- | VDOP: --"; document.getElementById('m_dop_info').innerText = "PDOP: -- | VDOP: --"; document.getElementById('g_dop_info').innerText = "PDOP: -- | VDOP: --";
+        document.getElementById('v2_gps_stat').innerText = "H.Acc: --"; document.getElementById('m_gps_stat').innerText = "H.Acc: --"; document.getElementById('g_gps_stat').innerText = "H.Acc: --"; document.getElementById('so_gps_stat').innerText = "H.Acc: --";
+        document.getElementById('v2_v_acc').innerText = "V.Acc: --"; document.getElementById('m_v_acc').innerText = "V.Acc: --"; document.getElementById('g_v_acc').innerText = "V.Acc: --"; document.getElementById('so_v_acc').innerText = "V.Acc: --";
+        document.getElementById('v2_sat').innerText = "🛰️ Sat: --"; document.getElementById('m_sat').innerText = "🛰️ Sat: --"; document.getElementById('g_sat').innerText = "🛰️ Sat: --"; document.getElementById('so_sat').innerText = "🛰️ Sat: --";
         document.getElementById('v2_geoid_val').innerText = "Geoid (N): --.--- m"; document.getElementById('m_geoid_val').innerText = "Geoid (N): --.--- m"; document.getElementById('g_geoid_val').innerText = "Geoid (N): --.--- m";
         document.getElementById('v2_raw_alt').innerText = "Raw GPS Alt: --.--- m"; document.getElementById('m_raw_alt').innerText = "Raw GPS Alt: --.--- m"; document.getElementById('g_raw_alt').innerText = "Raw GPS Alt: --.--- m";
         
@@ -429,14 +430,27 @@ window.onNativeGPSUpdate = function(d) {
     else { fetchGeoidDataFromNative(lat, lon); }
 
     let hA = d.hAcc || d.acc || 0;
+    // Android Native ကနေ vAcc နဲ့ satCount လာရင် ယူမယ်။ Web GPS ဆိုရင် 0 (သို့) N/A ပြမယ်။
+    let vA = d.vAcc || d.altitudeAccuracy || 0; 
+    let sats = d.satCount !== undefined ? d.satCount : "--";
 
     if(window.activeApp === 1 || window.activeApp === 2 || window.activeApp === 5) {
         document.getElementById(t+'_gps_stat').innerText = `H.Acc: ${hA.toFixed(1)}m`;
-        let pdop = d.pdop ? d.pdop.toFixed(1) : "--", vdop = d.vdop ? d.vdop.toFixed(1) : "--";
-        document.getElementById(t+'_dop_info').innerText = `PDOP: ${pdop} | VDOP: ${vdop}`;
+        document.getElementById(t+'_v_acc').innerText = `V.Acc: ${vA > 0 ? vA.toFixed(1) + 'm' : '--'}`;
+        document.getElementById(t+'_sat').innerText = `🛰️ Sat: ${sats}`;
+        
         let rawAltUI = document.getElementById(t+'_raw_alt'); let geoidUI = document.getElementById(t+'_geoid_val');
         if (rawAltUI) rawAltUI.innerText = `Raw GPS Alt: ${window.currentRawAlt.toFixed(3)} m`;
         if (geoidUI) geoidUI.innerText = `Geoid (N): ${window.currentGeoidN.toFixed(3)} m`;
+    } 
+    // 🔴 Set Out Tab အတွက် အလုပ်လုပ်စေမည့် အပိုင်းသစ်
+    else if (window.activeApp === 3) {
+        let soH = document.getElementById('so_gps_stat');
+        let soV = document.getElementById('so_v_acc');
+        let soS = document.getElementById('so_sat');
+        if (soH) soH.innerText = `H.Acc: ${hA.toFixed(1)}m`;
+        if (soV) soV.innerText = `V.Acc: ${vA > 0 ? vA.toFixed(1) + 'm' : '--'}`;
+        if (soS) soS.innerText = `🛰️ Sat: ${sats}`;
     }
     updateZDisplay(t);
 
