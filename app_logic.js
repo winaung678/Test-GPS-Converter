@@ -357,7 +357,7 @@ window.toggleGlobalGPS = function() {
                 window.onNativeGPSUpdate({
                     lat: pos.coords.latitude, lon: pos.coords.longitude,
                     alt: pos.coords.altitude||0, acc: pos.coords.accuracy||0, hAcc: pos.coords.accuracy||0,
-                    vAcc: pos.coords.altitudeAccuracy||0, satCount: 5
+                    vAcc: "Web", satCount: "Web"
                 });
             }, (err) => { alert("GPS Error: " + err.message); }, { enableHighAccuracy: true, maximumAge: 0 });
         }
@@ -430,26 +430,37 @@ window.onNativeGPSUpdate = function(d) {
     else { fetchGeoidDataFromNative(lat, lon); }
 
     let hA = d.hAcc || d.acc || 0;
-    // Android Native ကနေ vAcc နဲ့ satCount လာရင် ယူမယ်။ Web GPS ဆိုရင် 0 (သို့) N/A ပြမယ်။
-    let vA = d.vAcc || d.altitudeAccuracy || 0; 
+    
+    // Web ကနေဆိုရင် "Web" လာမယ်၊ APK ကနေဆိုရင် ဂဏန်းအစစ် လာပါမယ်
+    let vA = d.vAcc !== undefined ? d.vAcc : "--"; 
     let sats = d.satCount !== undefined ? d.satCount : "--";
+
+    // V.Acc ကို UI ပေါ်ပြရန် Format ပြင်ဆင်ခြင်း
+    let vAccDisplay;
+    if (vA === "Web") {
+        vAccDisplay = "Web";
+    } else if (typeof vA === 'number' && vA > 0) {
+        vAccDisplay = vA.toFixed(1) + "m";
+    } else {
+        vAccDisplay = "--";
+    }
 
     if(window.activeApp === 1 || window.activeApp === 2 || window.activeApp === 5) {
         document.getElementById(t+'_gps_stat').innerText = `H.Acc: ${hA.toFixed(1)}m`;
-        document.getElementById(t+'_v_acc').innerText = `V.Acc: ${vA > 0 ? vA.toFixed(1) + 'm' : '--'}`;
+        document.getElementById(t+'_v_acc').innerText = `V.Acc: ${vAccDisplay}`;
         document.getElementById(t+'_sat').innerText = `🛰️ Sat: ${sats}`;
         
         let rawAltUI = document.getElementById(t+'_raw_alt'); let geoidUI = document.getElementById(t+'_geoid_val');
         if (rawAltUI) rawAltUI.innerText = `Raw GPS Alt: ${window.currentRawAlt.toFixed(3)} m`;
         if (geoidUI) geoidUI.innerText = `Geoid (N): ${window.currentGeoidN.toFixed(3)} m`;
     } 
-    // 🔴 Set Out Tab အတွက် အလုပ်လုပ်စေမည့် အပိုင်းသစ်
+    // 🔴 Set Out Tab အတွက်
     else if (window.activeApp === 3) {
         let soH = document.getElementById('so_gps_stat');
         let soV = document.getElementById('so_v_acc');
         let soS = document.getElementById('so_sat');
         if (soH) soH.innerText = `H.Acc: ${hA.toFixed(1)}m`;
-        if (soV) soV.innerText = `V.Acc: ${vA > 0 ? vA.toFixed(1) + 'm' : '--'}`;
+        if (soV) soV.innerText = `V.Acc: ${vAccDisplay}`;
         if (soS) soS.innerText = `🛰️ Sat: ${sats}`;
     }
     updateZDisplay(t);

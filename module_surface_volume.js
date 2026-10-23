@@ -2174,7 +2174,6 @@ window.exportVolDXF = function() {
     }
 };
 
-window.pointTextCanvasLayer = null;
 
 // ==========================================
 // 🔴 HIGH PERFORMANCE POINT TEXT RENDERING (COMBINED)

@@ -21,13 +21,75 @@ function calcMeasureTotal(latlngs) {
     return total;
 }
 
-function buildMeasureSessionPopup(session) {
+// ထောက်လိုက်သောနေရာနှင့် အနီးဆုံး Segment Index ကို ရှာပေးမည့် Function
+function getClosestSegmentIndex(map, latlngs, clickLatLng) {
+    if (latlngs.length < 2) return 0;
+    let clickPt = map.latLngToLayerPoint(clickLatLng);
+    let minDist = Infinity;
+    let bestIdx = 0;
+
+    for (let i = 0; i < latlngs.length - 1; i++) {
+        let p1 = map.latLngToLayerPoint(latlngs[i]);
+        let p2 = map.latLngToLayerPoint(latlngs[i+1]);
+
+        let l2 = Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2);
+        let t = (l2 === 0) ? 0 : Math.max(0, Math.min(1, ((clickPt.x - p1.x) * (p2.x - p1.x) + (clickPt.y - p1.y) * (p2.y - p1.y)) / l2));
+        
+        let projX = p1.x + t * (p2.x - p1.x);
+        let projY = p1.y + t * (p2.y - p1.y);
+        
+        let dist = Math.pow(clickPt.x - projX, 2) + Math.pow(clickPt.y - projY, 2);
+        
+        if (dist < minDist) { minDist = dist; bestIdx = i; }
+    }
+    return bestIdx;
+}
+
+function buildMeasureSessionPopup(session, clickedIdx) {
     let total = calcMeasureTotal(session.latlngs);
-    return `<div style="text-align:center; padding:5px;">
-        <b style="color:#b91c1c; font-size:14px;">Total: ${total.toFixed(3)} m</b><br>
-        <span style="font-size:11px; color:#64748b;">${session.latlngs.length - 1} segment(s)</span><br>
-        <button class="so-popup-btn" style="background:#ef4444; margin-top:8px;" onclick="window.deleteMeasureSession(${session.id})">🗑️ Delete Line</button>
-    </div>`;
+    let html = `<div style="text-align:center; padding: 2px; line-height: 1.4; width: 150px;">`;
+    html += `<b style="color:#b91c1c; font-size:13px;">Total: ${total.toFixed(3)} m</b><br>`;
+    
+    if (clickedIdx >= 0 && clickedIdx < session.latlngs.length - 1) {
+        let p1 = session.latlngs[clickedIdx];
+        let p2 = session.latlngs[clickedIdx + 1];
+        
+        let segDist = 0;
+        let bearingDec = 0;
+
+        // 1. Lat/Lon ကို Local Grid (N, E) အဖြစ် ပြောင်းယူခြင်း
+        let pt1Grid = window.getDatumCoordsForLatLon(p1[0], p1[1]);
+        let pt2Grid = window.getDatumCoordsForLatLon(p2[0], p2[1]);
+
+        // 2. N, E မှန်ကန်ပါက COGO tool အတိုင်း Grid Bearing တွက်ခြင်း
+        if (pt1Grid.showLocal && pt2Grid.showLocal) {
+            let inv = calcGridInverse(pt1Grid.localN, pt1Grid.localE, pt2Grid.localN, pt2Grid.localE);
+            segDist = inv.dist;
+            bearingDec = inv.bearing;
+        } else {
+            // Out of bounds ဖြစ်နေရင် Geodetic နဲ့ တွက်ပေးမည် (Fallback)
+            segDist = calcSegmentDistance(p1[0], p1[1], p2[0], p2[1]);
+            bearingDec = calcBearing(p1[0], p1[1], p2[0], p2[1]);
+        }
+        
+        // 3. Bearing ကို DMS ပုံစံပြောင်းခြင်း (Second ကို ဒသမ ၁ နေရာအထိ ယူမည်)
+        let d = Math.floor(bearingDec);
+        let minFloat = (bearingDec - d) * 60;
+        let m = Math.floor(minFloat);
+        let s = ((minFloat - m) * 60).toFixed(1); 
+        let brgStr = `${d}° ${m}' ${s}"`;
+
+        html += `<hr style="margin:4px 0; border:0.5px solid #ccc;">`;
+        html += `<div style="font-size:11px; font-weight:bold; color:#1e40af;">Seg ${clickedIdx + 1} ➔ ${clickedIdx + 2}</div>`;
+        html += `<div style="font-size:11px; color:#059669;"><b>Brg:</b> ${brgStr}</div>`;
+        html += `<div style="font-size:11px; color:#059669;"><b>Dist:</b> ${segDist.toFixed(3)} m</div>`;
+    } else {
+        html += `<span style="font-size:11px; color:#64748b;">${session.latlngs.length - 1} segment(s)</span><br>`;
+    }
+
+    html += `<button class="so-popup-btn" style="background:#ef4444; margin-top:6px; width:100%; padding: 4px;" onclick="window.deleteMeasureSession(${session.id})">🗑️ Delete</button>`;
+    html += `</div>`;
+    return html;
 }
 
 function bindMeasureSessionClick(session) {
@@ -41,7 +103,13 @@ function bindMeasureSessionClick(session) {
             return;
         }
         L.DomEvent.stopPropagation(e);
-        L.popup().setLatLng(e.latlng).setContent(buildMeasureSessionPopup(session)).openOn(window.leafletMap);
+        
+        let clickedIdx = -1;
+        if (session.latlngs.length > 1) {
+            clickedIdx = getClosestSegmentIndex(window.leafletMap, session.latlngs, e.latlng);
+        }
+        
+        L.popup().setLatLng(e.latlng).setContent(buildMeasureSessionPopup(session, clickedIdx)).openOn(window.leafletMap);
     };
 
     session.hitLineLayer.on('click', handleClick);
