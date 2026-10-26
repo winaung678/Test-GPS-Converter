@@ -561,11 +561,26 @@ window.initMap = function() {
         if (snapResult.snapped) { popupContent += `<div style="background:#10b981; color:white; font-size:11px; font-weight:bold; padding:3px; border-radius:4px; margin-bottom:5px;">🧲 Snapped to DXF Node</div>`; }
 
         if (coords.showLocal) { 
-            popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}</b><hr style="margin:5px 0; border:0.5px solid #ccc;">`; 
+            popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}</b><hr style="margin:4px 0; border:0.5px solid #ccc;">`; 
         }
         else { popupContent += `<b style="font-size:11px; color:#ef4444; background:#fee2e2; padding:3px; border-radius:4px; display:block; margin-bottom:5px;">⚠️ Out of Local Bounds</b>`; }
 
-        popupContent += `<b style="font-size:12px; color:#1e3a8a;">Lat: ${finalLat.toFixed(7)}<br>Lon: ${finalLon.toFixed(7)}</b>`;
+        // --- Geoid ဖတ်သည့် အပိုင်း (အသစ်) ---
+        let mapGeoid = null;
+        let mapGeoidModel = "";
+        if (window.webEgm2008) {
+            let n = window.webEgm2008.getUndulation(finalLat, finalLon);
+            if (n !== null) { mapGeoid = n; mapGeoidModel = "EGM2008"; }
+        }
+        if (mapGeoid === null && window.webEgm96) {
+            let glon = finalLon < 0 ? finalLon + 360 : finalLon;
+            let n96 = window.webEgm96.getUndulation(finalLat, glon);
+            if (n96 !== null) { mapGeoid = n96; mapGeoidModel = "EGM96"; }
+        }
+        let geoidText = (mapGeoid !== null) ? `<br><span style="font-size:11px; color:#059669; font-weight:bold;">Geoid: ${mapGeoid.toFixed(3)}m (${mapGeoidModel})</span>` : "";
+        // ----------------------------------
+
+        popupContent += `<b style="font-size:12px; color:#1e3a8a; line-height:1.2; display:block;">Lat: ${finalLat.toFixed(7)}<br>Lon: ${finalLon.toFixed(7)}</b>${geoidText}`;
 
         if (window.activeApp === 3 && typeof window.setOutFromMapClick === 'function') {
             popupContent += `<div style="margin-top:5px; display:flex; justify-content:center;">`;
