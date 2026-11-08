@@ -99,3 +99,17 @@ requestDB.onsuccess = function(e) {
 requestDB.onerror = function(e) {
     console.error("IndexedDB Error:", e);
 };
+
+// ==========================================
+// --- PROFILE & CROSS SECTION VARIABLES ---
+// ==========================================
+window.profCenterlinePts = [];       // User ဆွဲထားသော Alignment Point များ
+window.isProfDrawing = false;        // မျဉ်းဆွဲနေသည့် အခြေအနေ (True/False)
+window.profDraftPoint = null;        // ယာယီ Click ထောက်ထားသော Point
+window.profSectionData = null;       // တွက်ချက်ပြီးသား Profile & Section Data အားလုံး သိမ်းရန်
+
+// Leaflet Map Layers for Profile
+window.profBoundaryLayer = null;     // အချောဆွဲပြီးသား Centerline မျဉ်း
+window.profDraftMarker = null;       // ယာယီအဝါရောင် အမှတ်
+window.profDraftLine = null;         // ယာယီအဝါရောင် မျဉ်းဆက်
+window.profCrossSectionLines = null; // Map ပေါ်မှာ ခုတ်ပြမယ့် Cross Section မျဉ်းတိုလေးများ

@@ -276,6 +276,7 @@ function addMeasurePoint(finalLat, finalLon, snapResult) {
 
     active.nodes.push(node);
     window.refreshMeasureVisuals();
+    window.syncDrawBar();
 
     if (window.measurePreviewLine) {
         window.measurePreviewLine.setLatLngs([]);
@@ -308,52 +309,222 @@ window.undoMeasurePoint = function() {
     }
 
     window.refreshMeasureVisuals();
+    window.syncDrawBar();
 };
 
 window.toggleMeasureMode = function() {
-    if (window.isDrawingBoundary || window.isDrawingExclude || window.isVolDrawing) {
-        alert("⚠️ Please finish or clear the current boundary drawing first.");
+    // တခြား Map tool (Boundary / Volume / PF / Label) ဆွဲနေလျှင် Measure မစရ
+    if (!window.isMeasuring && !window.canStartMapTool('measure')) return;
+
+    let btn = document.getElementById('measureBtn');
+    if (!window.isMeasuring) {
+        if (!window.leafletMap) return;
+        window.isMeasuring = true;
+        if (btn) { btn.style.background = "#dc2626"; btn.style.borderColor = "#991b1b"; }
+        startActiveMeasureSession();
+    } else {
+        window.isMeasuring = false;
+        if (btn) { btn.style.background = "#f59e0b"; btn.style.borderColor = "#d97706"; }
+        stopMeasureMode();
+    }
+    window.syncDrawBar();
+};
+
+// Measure: ယခု line ကိုပြီးအောင်သိမ်းပြီး Measure mode မထွက်ဘဲ နောက် line ဆက်တိုင်း
+window.measureNewLine = function() {
+    if (!window.isMeasuring) return;
+    finalizeActiveMeasureSession();
+    clearMeasurePreview();
+    startActiveMeasureSession();
+    window.syncDrawBar();
+};
+
+// Measure: Clear (which = 'current' | 'all')
+window.measureClear = function(which) {
+    if (!window.isMeasuring) return;
+    discardActiveMeasureSession();
+    clearMeasurePreview();
+    if (which === 'all') window.measureSessions.slice().forEach(s => window.deleteMeasureSession(s.id));
+    startActiveMeasureSession();
+    window.syncDrawBar();
+};
+
+// ==========================================
+// 🔒 MAP TOOL GATE - Map ပေါ်တွင် tool တစ်ခုချင်းသာ အလုပ်လုပ်ခွင့်ပြုသည်
+// လက်ရှိ flag များ (isMeasuring, isLabelDrawing, isDrawingBoundary/Exclude, isVolDrawing, isProfDrawing)
+// ကိုပဲ ကြည့်ပြီး ဆုံးဖြတ်သဖြင့် သီးခြား state မရှိ (flag နှင့် မကိုက်ညီတာ မဖြစ်နိုင်)။
+// Tab အားလုံး (SVY21 / MM2000 / Topo / Volume / PF ...) တွင် map_engine.js ကို မျှသုံးသည်။
+// ==========================================
+// checkbox ရှိလျှင် ၎င်း၏ အခြေအနေ၊ မရှိလျှင် true (layer ဆွဲရာတွင် ပိတ်ထားသော checkbox ကို လေးစား)
+window.layerOn = function(id) { let e = document.getElementById(id); return e ? !!e.checked : true; };
+
+window.escHtml = function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+
+window.MAP_TOOL_NAMES = {
+    measure: '📏 Measure', label: '🏷️ Label Line', boundary: '✏️ Boundary',
+    vol: '✏️ Volume boundary', prof: '✏️ Centerline'
+};
+
+window.getActiveMapTool = function() {
+    if (window.isMeasuring) return 'measure';
+    if (window.isLabelDrawing) return 'label';
+    if (window.isDrawingBoundary || window.isDrawingExclude) return 'boundary';
+    if (window.isVolDrawing) return 'vol';
+    if (window.isProfDrawing) return 'prof';
+    return null;
+};
+
+// tool အသစ်စခွင့်ရှိလား (တခြား tool အလုပ်လုပ်နေလျှင် စာတန်းပြပြီး false)
+window.canStartMapTool = function(name) {
+    let cur = window.getActiveMapTool();
+    if (!cur || cur === name) return true;
+    window.mapToast("Finish " + (window.MAP_TOOL_NAMES[cur] || cur) + " first (tap ✔ Done)");
+    return false;
+};
+
+// Map အပေါ်ဘက်မှာ မှိန်သွားသော စာတန်း (Map မမြင်ရလျှင် alert သုံး)
+window.mapToast = function(msg) {
+    let c = document.getElementById('map_container');
+    if (!c || c.offsetParent === null) { alert(msg); return; }
+    let t = document.getElementById('map_toast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'map_toast';
+        t.className = 'map-toast';
+        c.appendChild(t);
+    }
+    t.innerText = msg;
+    t.style.opacity = '1';
+    clearTimeout(window._mapToastTimer);
+    window._mapToastTimer = setTimeout(function() { t.style.opacity = '0'; }, 2600);
+};
+
+window.isToolPanelVisible = function(toolId) {
+    let tool = document.getElementById(toolId);
+    if (!tool || tool.classList.contains('hidden')) return false;
+    let map = document.getElementById('shared_map_view');
+    return !!map && !map.classList.contains('hidden');
+};
+
+// ==========================================
+// 🎛️ ဘုံ DRAW TOOLBAR (Map အောက်ပိုင်းမှာ မျောနေသော ခလုတ်တန်း - tab အားလုံး မျှသုံး)
+//   registerDrawBar({ name, tool, persistent, fn }) - fn() က { hint, buttons:[{text,bg,hidden,active,fn}] } (သို့) null ပြန်သည်
+//   - tool = ထို tool အလုပ်လုပ်နေချိန် ဦးစားပေးပြမည့် provider
+//   - persistent = tool မစသေးလည်း (ထို panel ဖွင့်ထားချိန်) ပြနေမည့် provider
+// ==========================================
+window.drawBarProviders = window.drawBarProviders || [];
+window.drawBarMenuOwner = null;     // Clear မီနူး ဖွင့်ထားသော provider name
+window.drawBarLastSig = '';
+window.drawBarCollapsed = false;   // ဘာမှမဆွဲနေချိန် toolbar ကို ခေါက်ထားလိုလျှင် true
+
+window.registerDrawBar = function(p) {
+    let i = window.drawBarProviders.findIndex(x => x.name === p.name);
+    if (i >= 0) window.drawBarProviders[i] = p; else window.drawBarProviders.push(p);
+};
+
+window.openDrawBarMenu = function(owner) { window.drawBarMenuOwner = owner; window.syncDrawBar(); };
+
+// "Clear what?" စသည့် ရွေးချယ်ရန်မီနူး (ခလုတ်တန်းထဲမှာပဲ ပြ)
+window.drawBarMenuCfg = function(title, items) {
+    let close = function() { window.drawBarMenuOwner = null; window.syncDrawBar(); };
+    let btns = items.map(it => ({ text: it.text, tone: it.tone, fn: function() { window.drawBarMenuOwner = null; it.fn(); window.syncDrawBar(); } }));
+    btns.push({ text: "Cancel", tone: "slate", fn: close });
+    return { hint: title, buttons: btns };
+};
+
+window.drawBarUndo = function() {
+    let cur = window.getActiveMapTool();
+    if (cur && cur !== 'measure' && typeof window.handleSharedMapUndo === 'function') window.handleSharedMapUndo();
+    else window.mapToast("Start drawing first, then use Undo");
+};
+
+window.syncDrawBar = function() {
+    let bar = document.getElementById('draw_bar');
+    if (!bar) return;
+    let cfg = null, owner = '', active = window.getActiveMapTool();
+    let run = function(p) { try { return p.fn(); } catch (e) { console.error('drawBar provider', p.name, e); return null; } };
+
+    if (active) {
+        let p = window.drawBarProviders.find(x => x.tool === active);
+        if (p) { cfg = run(p); if (cfg) owner = p.name; }
+    }
+    if (!cfg) {
+        for (let i = 0; i < window.drawBarProviders.length && !cfg; i++) {
+            let p = window.drawBarProviders[i];
+            if (p.persistent) { cfg = run(p); if (cfg) owner = p.name; }
+        }
+    }
+    if (!cfg) { bar.classList.remove('show'); window.drawBarLastSig = ''; return; }
+
+    // Tool တစ်ခု အလုပ်လုပ်နေလျှင် toolbar ကို အပြည့်ပြ (ခေါက်ထားလည်း ပြန်ဖြန့်) - Undo/Done မရောက်တာ မဖြစ်စေရန်
+    if (active) window.drawBarCollapsed = false;
+    let collapsed = !!window.drawBarCollapsed && !active;
+
+    // ခလုတ်များ အပြောင်းအလဲရှိမှသာ ပြန်ဆွဲသည် (နှိပ်နေစဉ် ခလုတ်ပျက်မသွားစေရန်)
+    // owner (provider) ကိုပါ ထည့်စစ်သည် - မဟုတ်လျှင် စာသားတူသော bar နှစ်ခု (ဥပမာ PF / Volume) ကြားပြောင်းရာတွင် ခလုတ်အဟောင်း (tool မှား) ကျန်နေမည်
+    let sig = JSON.stringify([owner, collapsed, cfg.hint, cfg.buttons.map(b => [b.text, !!b.hidden, !!b.active])]);
+    if (sig === window.drawBarLastSig && bar.classList.contains('show')) return;
+    window.drawBarLastSig = sig;
+
+    if (collapsed) {
+        bar.classList.add('collapsed'); bar.classList.add('show');
+        let open = document.createElement('button');
+        open.className = 'draw-open';
+        open.innerText = "🎛 Tools ▸";
+        open.onclick = function(ev) { if (ev && ev.stopPropagation) ev.stopPropagation(); window.drawBarCollapsed = false; window.syncDrawBar(); };
+        bar.replaceChildren(open);
         return;
     }
+    bar.classList.remove('collapsed');
 
-    window.isMeasuring = !window.isMeasuring;
-    let btn = document.getElementById('measureBtn');
-    
-    // Undo ခလုတ်အတွက်သာ ချန်ထားသည်
-    let undoBtnId = 'measureUndoBtn';
-    let existingUndoBtn = document.getElementById(undoBtnId);
-
-    if (window.isMeasuring) {
-        btn.style.background = "#dc2626"; btn.style.borderColor = "#991b1b";
-        if (!window.leafletMap) return;
-        startActiveMeasureSession();
-
-        if (!existingUndoBtn) {
-            let undoBtn = document.createElement('button');
-            undoBtn.id = undoBtnId;
-            undoBtn.className = "map-loc-btn";
-            undoBtn.style.bottom = "35px"; 
-            undoBtn.style.right = "70px"; 
-            undoBtn.style.width = "30px";
-            undoBtn.style.padding = "5px 0";
-            undoBtn.style.fontSize = "14px";
-            undoBtn.style.borderRadius = "8px";
-            undoBtn.style.background = "#8b5cf6"; 
-            undoBtn.style.borderColor = "#7c3aed";
-            undoBtn.style.color = "white";
-            undoBtn.innerHTML = "↩️";
-            undoBtn.onclick = function(e) { L.DomEvent.stopPropagation(e); window.undoMeasurePoint(); };
-            document.getElementById('map_container').appendChild(undoBtn); 
-        } else {
-            existingUndoBtn.style.display = 'block';
-        }
-
-    } else {
-        btn.style.background = "#f59e0b"; btn.style.borderColor = "#d97706";
-        stopMeasureMode();
-        if (existingUndoBtn) existingUndoBtn.style.display = 'none'; 
+    let nodes = [];
+    let row = document.createElement('div');
+    row.className = 'draw-row';
+    let h = document.createElement('div');
+    h.className = 'draw-hint';
+    h.innerText = cfg.hint;
+    row.appendChild(h);
+    if (!active) {      // ဘာမှမဆွဲနေချိန်သာ ခေါက်ခွင့်ပေး
+        let hide = document.createElement('button');
+        hide.className = 'draw-hide';
+        hide.innerText = "▾ Hide";
+        hide.onclick = function(ev) { if (ev && ev.stopPropagation) ev.stopPropagation(); window.drawBarCollapsed = true; window.syncDrawBar(); };
+        row.appendChild(hide);
     }
+    nodes.push(row);
+    cfg.buttons.forEach(b => {
+        if (b.hidden) return;
+        let btn = document.createElement('button');
+        btn.className = 'draw-btn tone-' + (b.tone || 'slate') + (b.active ? ' active' : '');
+        btn.innerText = b.text;
+        btn.onclick = function(ev) { if (ev && ev.stopPropagation) ev.stopPropagation(); b.fn(); };
+        nodes.push(btn);
+    });
+    bar.replaceChildren(...nodes);
+    bar.classList.add('show');
 };
+if (typeof setInterval === 'function') setInterval(function() { try { window.syncDrawBar(); } catch (e) {} }, 500);
+
+// ---- Measure provider ----
+window.registerDrawBar({ name: 'measure', tool: 'measure', fn: function() {
+    if (window.drawBarMenuOwner === 'measure') {
+        return window.drawBarMenuCfg("Clear what?", [
+            { text: "This line", tone: "amber", fn: () => window.measureClear('current') },
+            { text: "All", tone: "red", fn: () => window.measureClear('all') }
+        ]);
+    }
+    let a = window.activeMeasureSession, n = a ? a.latlngs.length : 0, tot = 0;
+    for (let i = 0; i < n - 1; i++) tot += calcSegmentDistance(a.latlngs[i][0], a.latlngs[i][1], a.latlngs[i + 1][0], a.latlngs[i + 1][1]);
+    return {
+        hint: n === 0 ? "📏 Tap points to measure" : ("📏 " + n + " pts · " + tot.toFixed(3) + " m"),
+        buttons: [
+            { text: "➕ New Line", tone: "blue", hidden: n < 2, fn: () => window.measureNewLine() },
+            { text: "↩ Undo", tone: "violet", fn: () => window.undoMeasurePoint() },
+            { text: "🗑️ Clear", tone: "slate", fn: () => window.openDrawBarMenu('measure') },
+            { text: "✔ Done", tone: "red", fn: () => window.toggleMeasureMode() }
+        ]
+    };
+}});
 
 // ==========================================
 // --- ONLINE MAP ENGINE ---
@@ -390,7 +561,11 @@ window.getDatumCoordsForLatLon = function(finalLat, finalLon) {
         } else if (window.activeApp === 4) {
             let topoTool = document.getElementById('cogo_topo_tool');
             let volTool = document.getElementById('cogo_vol_tool');
-            if ((topoTool && !topoTool.classList.contains('hidden')) || (volTool && !volTool.classList.contains('hidden'))) {
+            let profTool = document.getElementById('cogo_prof_tool'); // 🔴 Profile Tool ကိုပါ ဖတ်မည်
+            
+            if ((topoTool && !topoTool.classList.contains('hidden')) || 
+                (volTool && !volTool.classList.contains('hidden')) || 
+                (profTool && !profTool.classList.contains('hidden'))) { // 🔴
                 datum = document.getElementById('topo_datum') ? document.getElementById('topo_datum').value : "WGS_LL";
             } else {
                 datum = cogoDatumVal; 
@@ -426,7 +601,11 @@ window.getDatumCoordsForLatLon = function(finalLat, finalLon) {
             } else if (window.activeApp === 4) {
                 let topoTool = document.getElementById('cogo_topo_tool');
                 let volTool = document.getElementById('cogo_vol_tool');
-                if ((topoTool && !topoTool.classList.contains('hidden')) || (volTool && !volTool.classList.contains('hidden'))) {
+                let profTool = document.getElementById('cogo_prof_tool'); // 🔴 Profile Tool ကိုပါ ဖတ်မည်
+                
+                if ((topoTool && !topoTool.classList.contains('hidden')) || 
+                    (volTool && !volTool.classList.contains('hidden')) || 
+                    (profTool && !profTool.classList.contains('hidden'))) { // 🔴
                     zInput = document.getElementById('topo_custom_zone'); hInput = document.getElementById('topo_custom_hemi');
                 } else {
                     zInput = document.getElementById('cogo_custom_zone'); hInput = document.getElementById('cogo_custom_hemi');
@@ -442,6 +621,37 @@ window.getDatumCoordsForLatLon = function(finalLat, finalLon) {
         }
     }
     return { datumLabel, localN, localE, showLocal };
+};
+
+// Local Grid (N, E) မှ Lat, Lon သို့ ပြန်လည်ပြောင်းလဲပေးသော Helper Function
+window.getDatumCoordsForLocal = function(localN, localE) {
+    let datum = document.getElementById('topo_datum') ? document.getElementById('topo_datum').value : "WGS_LL";
+    let autoZone = 47; // Default
+    let lat = 0, lon = 0;
+
+    if (datum === 'LOCAL') {
+        lat = (localN - (window.localOffsetN || 0)) / 100000;
+        lon = (localE - (window.localOffsetE || 0)) / 100000;
+    } else if (datum === "SVY21") {
+        let r = calc_v2_rev(localE, localN); lat = r.lat; lon = r.lon;
+    } else if (datum.startsWith("MM")) {
+        let zone = parseInt(datum.slice(-2)); let r = m_inverse(localE, localN, zone, m_EVE);
+        let x = m_llh2xyz(r.lat, r.lon, 0, m_EVE); let w = m_xyz2llh(x.x-m_DX, x.y-m_DY, x.z-m_DZ, m_WGS);
+        lat = w.lat; lon = w.lon;
+    } else if (datum.startsWith("WGS_UTM")) {
+        let zone = parseInt(datum.slice(-2)); let i = m_inverse(localE, localN, zone, m_WGS);
+        lat = i.lat; lon = i.lon;
+    } else if (datum === "GLOBAL_UTM") {
+        let zInput = document.getElementById('topo_custom_zone'); let hInput = document.getElementById('topo_custom_hemi');
+        let zone = (zInput && zInput.value) ? parseInt(zInput.value) : autoZone;
+        let hemi = hInput ? hInput.value : 'N';
+        let calcN = localN; if (hemi === 'S') calcN -= 10000000;
+        let i_w = m_inverse(localE, calcN, zone, m_WGS); lat = i_w.lat; lon = i_w.lon;
+    } else {
+        // Fallback to UTM WGS84
+        let i_w = m_inverse(localE, localN, autoZone, m_WGS); lat = i_w.lat; lon = i_w.lon;
+    }
+    return { lat: lat, lon: lon };
 };
 
 window.buildSavedPointPopup = function(lat, lon, opts) {
@@ -554,6 +764,7 @@ window.initMap = function() {
             addMeasurePoint(finalLat, finalLon, snapResult);
             return;
         }
+        if (window.isLabelDrawing) return;      // Label Line ဆွဲနေချိန် ပုံမှန် coordinate popup မပေါ်စေ
 
         let coords = window.getDatumCoordsForLatLon(finalLat, finalLon);
 
@@ -561,26 +772,11 @@ window.initMap = function() {
         if (snapResult.snapped) { popupContent += `<div style="background:#10b981; color:white; font-size:11px; font-weight:bold; padding:3px; border-radius:4px; margin-bottom:5px;">🧲 Snapped to DXF Node</div>`; }
 
         if (coords.showLocal) { 
-            popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}</b><hr style="margin:4px 0; border:0.5px solid #ccc;">`; 
+            popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}</b><hr style="margin:5px 0; border:0.5px solid #ccc;">`; 
         }
         else { popupContent += `<b style="font-size:11px; color:#ef4444; background:#fee2e2; padding:3px; border-radius:4px; display:block; margin-bottom:5px;">⚠️ Out of Local Bounds</b>`; }
 
-        // --- Geoid ဖတ်သည့် အပိုင်း (အသစ်) ---
-        let mapGeoid = null;
-        let mapGeoidModel = "";
-        if (window.webEgm2008) {
-            let n = window.webEgm2008.getUndulation(finalLat, finalLon);
-            if (n !== null) { mapGeoid = n; mapGeoidModel = "EGM2008"; }
-        }
-        if (mapGeoid === null && window.webEgm96) {
-            let glon = finalLon < 0 ? finalLon + 360 : finalLon;
-            let n96 = window.webEgm96.getUndulation(finalLat, glon);
-            if (n96 !== null) { mapGeoid = n96; mapGeoidModel = "EGM96"; }
-        }
-        let geoidText = (mapGeoid !== null) ? `<br><span style="font-size:11px; color:#059669; font-weight:bold;">Geoid: ${mapGeoid.toFixed(3)}m (${mapGeoidModel})</span>` : "";
-        // ----------------------------------
-
-        popupContent += `<b style="font-size:12px; color:#1e3a8a; line-height:1.2; display:block;">Lat: ${finalLat.toFixed(7)}<br>Lon: ${finalLon.toFixed(7)}</b>${geoidText}`;
+        popupContent += `<b style="font-size:12px; color:#1e3a8a;">Lat: ${finalLat.toFixed(7)}<br>Lon: ${finalLon.toFixed(7)}</b>`;
 
         if (window.activeApp === 3 && typeof window.setOutFromMapClick === 'function') {
             popupContent += `<div style="margin-top:5px; display:flex; justify-content:center;">`;
@@ -588,7 +784,8 @@ window.initMap = function() {
             popupContent += `</div>`;
         } 
 
-        if (window.activeApp === 4 && window.isVolDrawing) {
+        // 🔴 Profile မျဉ်းဆွဲနေချိန်မှာ Default Popup ထွက်မလာအောင် တားထားမည်
+        if (window.activeApp === 4 && (window.isVolDrawing || window.isProfDrawing)) {
             return; 
         }
 
@@ -797,7 +994,8 @@ L.CanvasTextLayer = L.Layer.extend({
 
         ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
-        if (this._map.getZoom() < 19) return;
+        let _z = this._map.getZoom();
+        if (_z < 16) return;
 
         let bounds = this._map.getBounds();
         let isDarkMode = document.getElementById('master-ui').classList.contains('dark-mode');
@@ -808,6 +1006,7 @@ L.CanvasTextLayer = L.Layer.extend({
         for (let i = 0; i < this._texts.length; i++) {
             let t = this._texts[i];
             if (!t.text || t.text.trim() === "") continue;
+            if (_z < 19 && !t.isContour) continue;      // Contour label များသာ zoom 16 မှစပြ၊ ကျန်စာများ အရင်အတိုင်း zoom 19 မှ
 
             if (bounds.contains([t.lat, t.lon])) {
                 let p = this._map.latLngToContainerPoint([t.lat, t.lon]);
@@ -1275,7 +1474,11 @@ window.plotPointsOnMap = function() {
     window.pointsLayerGroup = L.layerGroup().addTo(window.leafletMap);
 
     let total = window.setOutPoints.length;
-    if (total === 0) return;
+    if (total === 0) {
+        // Point တစ်ခုမှ မကျန်တော့လျှင်လည်း စာသား layer ဟောင်းကို ရှင်းပေးရမည် (မရှင်းလျှင် name ပုံရိပ်ကျန်နေသည်)
+        if (typeof window.updateMapPointTexts === 'function') window.updateMapPointTexts();
+        return;
+    }
 
     let i = 0;
     let chunkSize = 50;
@@ -1472,5 +1675,739 @@ window.toggleEquator = function() {
         if (!window.leafletMap.hasLayer(window.equatorLayer)) { window.leafletMap.addLayer(window.equatorLayer); }
     } else {
         if (window.equatorLayer && window.leafletMap.hasLayer(window.equatorLayer)) { window.leafletMap.removeLayer(window.equatorLayer); }
+    }
+};
+
+// ==========================================
+// --- PROFILE & SECTION MAP DRAWING (Centerline: Draw / Edit / Undo) ---
+// ဖွဲ့စည်းပုံ:  1) Config  2) State helpers  3) Geometry  4) Map click  5) Draw/Finish
+//              6) Draft popup  7) Confirm / Delete / Move  8) Map layers  9) Undo / Clear
+// ပြင်လိုလျှင်:  ကိန်းသေ => PROF_CFG | ခလုတ်/စာ => profRefreshControls | Edit အပိုင်း => 7 နှင့် 8
+// ==========================================
+
+// ---------- 1) Config ----------
+window.PROF_CFG = {
+    segPickPx: 14,     // မျဉ်းနှင့် ဤ pixel အကွာအတွင်း နှိပ်လျှင် "Insert" အဖြစ်သတ်မှတ်မည်
+    historyMax: 50     // Undo မှတ်တမ်း အများဆုံးအရေအတွက်
+};
+
+// ---------- 2) State & helpers ----------
+window.profCenterlinePts = window.profCenterlinePts || [];
+window.profAlignments = window.profAlignments || [];   // သိမ်းထားသော alignment များ { id, name, color, pts, settings, sectionData }
+window.profActiveId = null;                            // လက်ရှိ Edit လုပ်နေသော alignment id (အသစ်ဆွဲနေလျှင် null)
+window.profHistory = [];          // Undo အတွက် centerline snapshot များ
+window.profMoveIndex = null;      // Move လုပ်နေသော point index (မရှိလျှင် null)
+window.profMovePopup = null;
+
+// ပြင်ဆင်မှုမလုပ်မီ လက်ရှိ centerline ကို မှတ်တမ်းသိမ်းသည်
+window.profPushHistory = function() {
+    window.profHistory.push(JSON.parse(JSON.stringify(window.profCenterlinePts)));
+    if (window.profHistory.length > window.PROF_CFG.historyMax) window.profHistory.shift();
+};
+
+// Centerline ပြောင်းသွားလျှင် ယခင်တွက်ထားသော Section ရလဒ်များ ရှင်းထုတ်သည် (Calculate ပြန်လုပ်ရန်)
+window.profInvalidateResults = function() {
+    window.profSectionData = null;
+    let box = document.getElementById('prof_status_box');
+    if (box) box.classList.add('hidden');
+};
+
+window.profAutoDatum = function() {
+    let el = document.getElementById('prof_datum_z');
+    if (!el) return;
+    let pts = window.profCenterlinePts;
+    el.value = pts.length > 0 ? Math.floor(Math.min(...pts.map(p => p.groundZ)) - 2) : "";
+};
+
+// Draw/Edit ခလုတ်၊ Calculate ခလုတ်၊ status စာကြောင်း တို့ကို အခြေအနေအလိုက် ပြောင်းသည်
+window.profRefreshControls = function() {
+    let n = window.profCenterlinePts.length;
+    let drawing = !!window.isProfDrawing;
+
+    let drawBtn = document.getElementById('btn_prof_draw');
+    if (drawBtn) {
+        if (drawing) { drawBtn.innerText = n > 0 ? "🛑 Finish Editing" : "🛑 Finish Centerline"; drawBtn.style.background = "#ef4444"; }
+        else { drawBtn.innerText = n > 0 ? "✏️ Edit Centerline" : "✏️ Draw Centerline"; drawBtn.style.background = "#f59e0b"; }
+    }
+
+    let calcBtn = document.getElementById('btn_prof_calc');
+    if (calcBtn) {
+        let nAl = window.profAlignments.length;
+        let ready = !drawing && (n >= 2 || nAl > 0);
+        if (ready) calcBtn.classList.add('ready'); else calcBtn.classList.remove('ready');
+        calcBtn.innerText = drawing ? "⚙️ Calculate (finish the centerline first)"
+                          : (ready ? "⚙️ Calculate All Alignments" : "⚙️ Calculate (draw & save an alignment first)");
+    }
+
+    let activeAl = window.profActiveId ? window.profAlignments.find(a => a.id === window.profActiveId) : null;
+    let saveBtn = document.getElementById('btn_prof_save');
+    if (saveBtn) {
+        let okSave = !drawing && n >= 2;
+        saveBtn.innerText = activeAl ? `💾 Update ${activeAl.name}` : "💾 Save Alignment";
+        saveBtn.style.opacity = okSave ? "1" : "0.55";
+    }
+    let banner = document.getElementById('prof_edit_banner');
+    if (banner) {
+        banner.style.display = activeAl ? 'block' : 'none';
+        if (activeAl) banner.innerText = `✏️ Editing ${activeAl.name} — press Update to keep changes`;
+    }
+
+    let info = document.getElementById('prof_cl_info');
+    if (info) {
+        info.innerText = n === 0 ? "No centerline yet."
+                       : `Centerline: ${n} point${n > 1 ? 's' : ''}` + (drawing ? " · editing…" : " · finished ✓");
+    }
+};
+
+// ---------- 3) Geometry ----------
+window.profDistToSegmentPx = function(p, a, b) {
+    let dx = b.x - a.x, dy = b.y - a.y;
+    let len2 = dx * dx + dy * dy;
+    let t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+};
+
+// နှိပ်လိုက်သည့်နေရာနှင့် အနီးဆုံး segment index ကို ပြန်ပေးသည် (မရှိလျှင် -1)
+window.profFindNearSegment = function(containerPt) {
+    let pts = window.profCenterlinePts;
+    if (!window.leafletMap || pts.length < 2 || !containerPt) return -1;
+    let best = -1, bestD = window.PROF_CFG.segPickPx;
+    for (let i = 0; i < pts.length - 1; i++) {
+        let a = window.leafletMap.latLngToContainerPoint([pts[i].lat, pts[i].lon]);
+        let b = window.leafletMap.latLngToContainerPoint([pts[i + 1].lat, pts[i + 1].lon]);
+        let d = window.profDistToSegmentPx(containerPt, a, b);
+        if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+};
+
+// ---------- 4) Map click ----------
+window.profMapClickListener = function(e) {
+    if (!window.isProfDrawing) return;
+    let _pt = document.getElementById('cogo_prof_tool');
+    if (!_pt || _pt.classList.contains('hidden')) return;
+
+    let coords = window.getDatumCoordsForLatLon(e.latlng.lat, e.latlng.lng);
+    if (!coords.showLocal) return;
+
+    // Topo Surface (TIN) ရှိ/မရှိ စစ်ဆေးခြင်း
+    if (!window.topoTriangles || window.topoTriangles.length === 0) {
+        return alert("⚠️ No Topo Surface generated! Please go to 'Topo Surface' tool and generate surface first.");
+    }
+
+    let z = typeof getZFromTIN === 'function' ? getZFromTIN(coords.localN, coords.localE, window.topoTriangles) : null;
+    if (z === null) return alert("⚠️ Please tap INSIDE the generated Topo Surface area.");
+
+    if (window.profMovePopup && window.leafletMap) { window.leafletMap.closePopup(window.profMovePopup); window.profMovePopup = null; }
+
+    // mode: append (အဆုံးမှာထည့်) | insert (မျဉ်းပေါ်နှိပ်၍ ကြားထဲထည့်) | move (ရွေးထားသော point ကို ရွှေ့)
+    let draft = { lat: e.latlng.lat, lon: e.latlng.lng, n: coords.localN, e: coords.localE, groundZ: z,
+                  mode: 'append', index: window.profCenterlinePts.length };
+    if (window.profMoveIndex !== null) {
+        draft.mode = 'move'; draft.index = window.profMoveIndex;
+    } else {
+        let seg = window.profFindNearSegment(e.containerPoint);
+        if (seg >= 0) { draft.mode = 'insert'; draft.index = seg + 1; }
+    }
+    window.profDraftPoint = draft;
+    window.profUpdateBoundaryUI();
+};
+
+// ---------- 5) Draw / Edit / Finish ----------
+window.toggleProfDrawMode = function() {
+    if (window.isProfDrawing) return window.profStopDrawing();
+    if (!window.topoTriangles || window.topoTriangles.length === 0) return alert("⚠️ Please generate Topo Surface first!");
+    window.profStartDrawing();
+};
+
+window.profStartDrawing = function(silent) {
+    if (!window.isProfDrawing && !window.canStartMapTool('prof')) return;
+    window.isProfDrawing = true;
+    window.profMoveIndex = null;
+    window.drawBarMenuOwner = null;
+    if (window.leafletMap) {
+        window.leafletMap.off('click', window.profMapClickListener);
+        window.leafletMap.on('click', window.profMapClickListener);
+    }
+    if (typeof window.accCollapse === 'function') window.accCollapse(['prof:common', 'prof:pf', 'prof:cs']);   // ဆွဲစဉ် Setting များကို ခေါက်ထားပြီး map ကို နေရာပေး
+    window.profRefreshControls();
+    window.profUpdateBoundaryUI();
+};
+
+window.profStopDrawing = function() {
+    window.isProfDrawing = false;
+    window.profMoveIndex = null;
+    window.profDraftPoint = null;
+    window.drawBarMenuOwner = null;
+    if (window.leafletMap) {
+        window.leafletMap.off('click', window.profMapClickListener);
+        window.leafletMap.closePopup();
+    }
+    window.profMovePopup = null;
+    window.profRefreshControls();
+    window.profUpdateBoundaryUI();
+};
+
+// ---------- 6) Draft popup ----------
+window.profBuildDraftPopup = function(dPt) {
+    let pre = (dPt.mode === 'move') ? window.profCenterlinePts[dPt.index] : null;
+    let radVal = (pre && pre.radius > 0) ? pre.radius : 0;
+    let dirVal = (pre && pre.curveDir === 'Left') ? 'Left' : 'Right';
+    let btnText = dPt.mode === 'move' ? '✔ Move here' : (dPt.mode === 'insert' ? '↳ Insert here' : '➕ Add');
+    let title = dPt.mode === 'move' ? '↔ New Position' : (dPt.mode === 'insert' ? '↳ Insert Node' : '📍 Centerline Node');
+
+    return `<div style="text-align:center; padding: 0px; line-height: 1.2;">
+            <div style="font-weight:bold; font-size:10px; color:#d97706; margin-bottom:1px;">${title}</div>
+            <div style="font-size:10px; color:#0284c7; font-weight:bold; margin-bottom:2px;">
+                N: ${dPt.n.toFixed(2)} | E: ${dPt.e.toFixed(2)}<br>Z: ${dPt.groundZ.toFixed(2)}
+            </div>
+
+            <div style="margin-top:4px; margin-bottom:4px; border-top:1px dashed #cbd5e1; padding-top:4px; padding-bottom:2px;">
+                <div style="display:flex; align-items:center; justify-content:center; gap:2px;">
+                    <span style="font-size:10px; color:#64748b; font-weight:bold;">Rad:</span>
+                    <input type="number" id="prof_draft_radius_inp" value="${radVal}" min="0" step="1" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" style="width:45px; font-size:11px; padding:2px; border:1px solid #94a3b8; border-radius:3px; text-align:center; color:#1e40af; font-weight:bold; height:20px; margin:0;">
+                    <select id="prof_draft_dir_inp" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" style="font-size:10px; padding:1px; height:20px; border:1px solid #94a3b8; border-radius:3px; color:#b91c1c; font-weight:bold; margin:0;">
+                        <option value="Right" ${dirVal === 'Right' ? 'selected' : ''}>Right ⤵</option>
+                        <option value="Left" ${dirVal === 'Left' ? 'selected' : ''}>Left ⤴</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="so-popup-btn" style="background:#10b981; padding: 4px; font-size: 11px; margin-top: 2px; font-weight:bold; border-radius:3px; width:100%;" onclick="event.stopPropagation(); window.confirmProfDraftPoint();">${btnText}</button>
+        </div>`;
+};
+
+// ---------- 7) Confirm / Delete / Move ----------
+window.confirmProfDraftPoint = function() {
+    let d = window.profDraftPoint;
+    if (!d) return;
+
+    let radInput = document.getElementById('prof_draft_radius_inp');
+    let dirInput = document.getElementById('prof_draft_dir_inp');
+    let radiusVal = radInput ? parseFloat(radInput.value) : 0;
+    if (isNaN(radiusVal) || radiusVal <= 0) radiusVal = 0;
+
+    let pt = { lat: d.lat, lon: d.lon, n: d.n, e: d.e, groundZ: d.groundZ,
+               radius: radiusVal, curveDir: radiusVal > 0 ? (dirInput ? dirInput.value : 'Right') : 'None' };
+
+    window.profPushHistory();
+    if (d.mode === 'move') window.profCenterlinePts[d.index] = pt;
+    else if (d.mode === 'insert') window.profCenterlinePts.splice(d.index, 0, pt);
+    else window.profCenterlinePts.push(pt);
+
+    window.profDraftPoint = null;
+    window.profMoveIndex = null;
+    if (window.leafletMap) window.leafletMap.closePopup();
+
+    window.profAutoDatum();
+    window.profInvalidateResults();
+    window.profUpdateBoundaryUI();
+};
+
+window.profDeletePoint = function(i) {
+    if (i < 0 || i >= window.profCenterlinePts.length) return;
+    window.profPushHistory();
+    window.profCenterlinePts.splice(i, 1);
+    window.profDraftPoint = null;
+    window.profMoveIndex = null;
+    if (window.leafletMap) window.leafletMap.closePopup();
+    window.profAutoDatum();
+    window.profInvalidateResults();
+    window.profUpdateBoundaryUI();
+};
+
+window.profStartMovePoint = function(i) {
+    let pt = window.profCenterlinePts[i];
+    if (!pt || !window.leafletMap) return;
+    window.profMoveIndex = i;
+    window.profDraftPoint = null;
+    window.leafletMap.closePopup();
+    window.profMovePopup = L.popup({ closeOnClick: false, autoClose: false })
+        .setLatLng([pt.lat, pt.lon])
+        .setContent('<div style="font-size:11px; font-weight:bold; color:#d97706; text-align:center;">↔ Tap the new location<br>on the map</div>')
+        .openOn(window.leafletMap);
+    window.profUpdateBoundaryUI();
+};
+
+// Point တစ်ခုကို နှိပ်လျှင် ပေါ်မည့် Move / Delete menu
+window.profShowPointMenu = function(i) {
+    let pt = window.profCenterlinePts[i];
+    if (!pt || !window.leafletMap || !window.isProfDrawing) return;
+    let radText = (pt.radius && pt.radius > 0) ? `<br>R: ${pt.radius}m (${pt.curveDir})` : "";
+    let html = `<div style="text-align:center; line-height:1.3;">
+        <div style="font-weight:bold; font-size:11px; color:#0284c7;">CH-${i + 1}</div>
+        <div style="font-size:10px; color:#475569;">N: ${pt.n.toFixed(2)} | E: ${pt.e.toFixed(2)}<br>Z: ${pt.groundZ.toFixed(2)}${radText}</div>
+        <div style="display:flex; gap:4px; margin-top:5px;">
+            <button class="so-popup-btn" style="background:#0284c7; padding:4px 8px; font-size:11px; font-weight:bold; border-radius:3px; flex:1;" onclick="event.stopPropagation(); window.profStartMovePoint(${i});">↔ Move</button>
+            <button class="so-popup-btn" style="background:#ef4444; padding:4px 8px; font-size:11px; font-weight:bold; border-radius:3px; flex:1;" onclick="event.stopPropagation(); window.profDeletePoint(${i});">🗑️ Delete</button>
+        </div></div>`;
+    L.popup({ closeOnClick: true }).setLatLng([pt.lat, pt.lon]).setContent(html).openOn(window.leafletMap);
+};
+
+// ---------- 8) Map layers ----------
+window.profUpdateBoundaryUI = function() {
+    if (!window.leafletMap) return;
+
+    if (window.profBoundaryLayer) window.leafletMap.removeLayer(window.profBoundaryLayer);
+    let pts = window.profCenterlinePts;
+
+    let layers = [];
+    if (pts.length > 0) {
+        let displayLatLngs = [];
+
+        // 2-Point စနစ်ဖြင့် မြေပုံပေါ်တွင် ဆွဲခြင်း (radius ပါလျှင် မျဉ်းကွေး)
+        for (let i = 0; i < pts.length - 1; i++) {
+            let p1 = pts[i];
+            let p2 = pts[i + 1];
+
+            if (i === 0) displayLatLngs.push([p1.lat, p1.lon]);
+
+            let curveData = (p2.radius > 0) ? calcArcGeometry(p1, p2) : null;
+
+            if (curveData) {
+                curveData.arcPoints.forEach(arcPt => {
+                    let arcLatLon = window.getDatumCoordsForLocal(arcPt.n, arcPt.e);
+                    displayLatLngs.push([arcLatLon.lat, arcLatLon.lon]);
+                });
+            } else {
+                displayLatLngs.push([p2.lat, p2.lon]);
+            }
+        }
+
+        layers.push(L.polyline(displayLatLngs, { color: '#0284c7', weight: 4, opacity: 0.8, interactive: false }));
+
+        pts.forEach((pt, index) => {
+            let isMoving = (window.profMoveIndex === index);
+            let border = isMoving ? '#f59e0b' : '#0284c7';
+            let size = isMoving ? 16 : 12;
+            let ptMarker = L.marker([pt.lat, pt.lon], {
+                icon: L.divIcon({ className: 'bdy-point-marker', html: `<div style="width:${size}px; height:${size}px; background:#fff; border:3px solid ${border}; border-radius:50%; box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+                interactive: true
+            });
+            // Draw/Edit mode ဖြစ်မှသာ point menu ပေါ်စေသည်
+            ptMarker.on('click', () => { if (window.isProfDrawing) window.profShowPointMenu(index); });
+
+            let labelText = `CH-${index + 1}`;
+            let radText = (pt.radius && pt.radius > 0) ? `<br><span style="color:#ef4444; font-size:9px;">R: ${pt.radius}m (${pt.curveDir})</span>` : "";
+            ptMarker.bindTooltip(`<div style="text-align:center; font-weight:bold; font-size:10px; color:#0284c7;">${labelText}${radText}</div>`, { permanent: true, direction: 'top', className: 'pt-tooltip', offset: [0, -5] });
+
+            layers.push(ptMarker);
+        });
+        window.profBoundaryLayer = L.layerGroup(layers).addTo(window.leafletMap);
+    }
+
+    if (window.isProfDrawing && window.profDraftPoint) {
+        let dPt = window.profDraftPoint;
+        let popupHTML = window.profBuildDraftPopup(dPt);
+
+        if (!window.profDraftMarker) {
+            window.profDraftMarker = L.marker([dPt.lat, dPt.lon], {
+                icon: L.divIcon({ className: 'draft-marker', html: `<div style="background:#eab308; width:18px; height:18px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 5px rgba(0,0,0,0.8);"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] })
+            }).bindPopup(popupHTML, { closeOnClick: false, autoClose: false }).addTo(window.leafletMap);
+            setTimeout(() => { window.profDraftMarker.openPopup(); }, 50);
+        } else {
+            window.profDraftMarker.setLatLng([dPt.lat, dPt.lon]);
+            window.profDraftMarker.setPopupContent(popupHTML);
+            if (!window.leafletMap.hasLayer(window.profDraftMarker)) window.profDraftMarker.addTo(window.leafletMap);
+            setTimeout(() => { window.profDraftMarker.openPopup(); }, 50);
+        }
+
+        // Draft မျဉ်း: append = နောက်ဆုံးမှတ်မှ၊ insert/move = ရှေ့မှတ် → draft → နောက်မှတ်
+        let ll = (p) => [p.lat, p.lon];
+        let chain = [];
+        if (dPt.mode === 'append') {
+            if (pts.length > 0) chain = [ll(pts[pts.length - 1]), ll(dPt)];
+        } else {
+            let prev = pts[dPt.index - 1];
+            let next = (dPt.mode === 'move') ? pts[dPt.index + 1] : pts[dPt.index];
+            if (prev) chain.push(ll(prev));
+            chain.push(ll(dPt));
+            if (next) chain.push(ll(next));
+        }
+        if (chain.length >= 2) {
+            if (!window.profDraftLine) window.profDraftLine = L.polyline(chain, { color: '#eab308', weight: 3, dashArray: '5, 5', interactive: false }).addTo(window.leafletMap);
+            else { window.profDraftLine.setLatLngs(chain); if (!window.leafletMap.hasLayer(window.profDraftLine)) window.profDraftLine.addTo(window.leafletMap); }
+        } else if (window.profDraftLine) {
+            window.leafletMap.removeLayer(window.profDraftLine);
+        }
+    } else {
+        if (window.profDraftMarker) window.leafletMap.removeLayer(window.profDraftMarker);
+        if (window.profDraftLine) window.leafletMap.removeLayer(window.profDraftLine);
+    }
+
+    window.profRefreshControls();
+    window.profRenderSavedAlignments();
+    window.syncDrawBar();
+};
+
+// ---------- 9) Undo / Clear ----------
+window.undoProfCenterline = function() {
+    if (window.profDraftPoint) {                       // ၁) မအတည်ပြုရသေးသော draft ကို ပယ်
+        window.profDraftPoint = null;
+        window.profUpdateBoundaryUI();
+    } else if (window.profMoveIndex !== null) {        // ၂) Move ရွေးထားခြင်းကို ပယ်
+        window.profMoveIndex = null;
+        if (window.profMovePopup && window.leafletMap) { window.leafletMap.closePopup(window.profMovePopup); window.profMovePopup = null; }
+        window.profUpdateBoundaryUI();
+    } else if (window.profHistory.length > 0) {        // ၃) နောက်ဆုံး ပြင်ဆင်မှုကို ပြန်ဖျက် (add/insert/move/delete)
+        window.profCenterlinePts = window.profHistory.pop();
+        window.profAutoDatum();
+        window.profInvalidateResults();
+        window.profUpdateBoundaryUI();
+    } else {
+        alert("No points to undo.");
+    }
+};
+
+window.clearProfCenterline = function(skipConfirm) {
+    if (!skipConfirm && window.profCenterlinePts.length > 0 && !confirm("Clear centerline?")) return;
+    window.profCenterlinePts = [];
+    window.profActiveId = null;     // Edit လုပ်နေသော alignment ရှိလျှင် Edit ကို ပယ်သည် (သိမ်းထားသော version မပျက်)
+    window.profHistory = [];
+    window.profDraftPoint = null;
+    window.profMoveIndex = null;
+    window.profInvalidateResults();
+    window.profAutoDatum();
+    if (window.isProfDrawing) window.profStopDrawing();   // (ထဲမှာ profUpdateBoundaryUI ပါပြီးသား)
+    else window.profUpdateBoundaryUI();
+};
+
+
+// Toolbar Clear: which = 'current' (editor ထဲက line) | 'saved' (သိမ်းထားသော alignment အားလုံး) | 'both'
+// ဆွဲနေစဉ်ဆိုလျှင် Draw mode ကို ဆက်ဖွင့်ထားသည်
+window.profClear = function(which) {
+    let was = !!window.isProfDrawing;
+    if (which === 'saved' || which === 'both') {
+        window.profAlignments = [];
+        window.profActiveId = null;
+    }
+    if (which === 'current' || which === 'both') window.clearProfCenterline(true);
+    window.profUpdateBoundaryUI();
+    if (was && !window.isProfDrawing) window.profStartDrawing(true);
+    window.syncDrawBar();
+};
+
+// ---------- 10) Multi-alignment (သိမ်းထားသော alignment များ - တစ်ခုချင်း setting သီးသန့်၊ တစ်ခုချင်း Edit) ----------
+window.PROF_ALIGN_COLORS = ['#0284c7', '#16a34a', '#c026d3', '#ea580c', '#0d9488', '#7c3aed', '#be123c', '#4d7c0f'];
+// Alignment တစ်ခုချင်းစီနှင့်အတူ သိမ်းမည့် panel input များ
+window.PROF_SETTING_IDS = ['prof_interval', 'prof_ch_text_h', 'prof_h_scale', 'prof_v_scale', 'prof_datum_z', 'prof_grid_z_int',
+    'prof_draw_offsets', 'prof_pf_left', 'prof_pf_right', 'prof_sampling', 'prof_cs_grid_z', 'prof_cs_left', 'prof_cs_right',
+    'prof_cs_h_scale', 'prof_cs_v_scale'];
+
+window.profSnapshotSettings = function() {
+    let s = {};
+    window.PROF_SETTING_IDS.forEach(id => {
+        let el = document.getElementById(id);
+        if (!el) return;
+        s[id] = (el.type === 'checkbox') ? el.checked : el.value;
+    });
+    return s;
+};
+
+window.profApplySettings = function(s) {
+    if (!s) return;
+    window.PROF_SETTING_IDS.forEach(id => {
+        let el = document.getElementById(id);
+        if (!el || s[id] === undefined) return;
+        if (el.type === 'checkbox') el.checked = !!s[id]; else el.value = s[id];
+    });
+    if (typeof window.updatePfCsSummary === 'function') window.updatePfCsSummary();
+    window.profRefreshSummaries();
+};
+
+// သုံးပြီးသား နံပါတ်ကို ကျော်၍ PF-1, PF-2 … အမည်ပေးသည်
+window.profNextName = function() {
+    let used = new Set(window.profAlignments.map(a => a.name));
+    let k = 1;
+    while (used.has('PF-' + k)) k++;
+    return 'PF-' + k;
+};
+
+window.profAlignLatLngs = function(pts) {
+    let out = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+        let p1 = pts[i], p2 = pts[i + 1];
+        if (i === 0) out.push([p1.lat, p1.lon]);
+        let curve = (p2.radius > 0 && typeof calcArcGeometry === 'function') ? calcArcGeometry(p1, p2) : null;
+        if (curve) {
+            curve.arcPoints.forEach(a => { let ll = window.getDatumCoordsForLocal(a.n, a.e); out.push([ll.lat, ll.lon]); });
+        } else {
+            out.push([p2.lat, p2.lon]);
+        }
+    }
+    return out;
+};
+
+window.profEditorDirty = function() {
+    if (window.profActiveId) {
+        let al = window.profAlignments.find(a => a.id === window.profActiveId);
+        return !!al && JSON.stringify(al.pts) !== JSON.stringify(window.profCenterlinePts);
+    }
+    return window.profCenterlinePts.length > 0;
+};
+
+// Editor ကို အသစ်ပြန်စသည် (setting တန်ဖိုးများကို ကျန်ခဲ့သည် - နောက် alignment အတွက် ပြန်သုံးနိုင်ရန်)
+window.profNewAlignment = function(skipConfirm) {
+    if (!skipConfirm && window.profEditorDirty() && !confirm("Discard the centerline currently in the editor?")) return;
+    window.profActiveId = null;
+    window.profCenterlinePts = [];
+    window.profHistory = [];
+    window.profDraftPoint = null;
+    window.profMoveIndex = null;
+    window.profInvalidateResults();
+    window.profAutoDatum();
+    if (window.isProfDrawing) window.profStopDrawing(); else window.profUpdateBoundaryUI();
+    window.profRenderAlignList();
+};
+
+window.profSaveAlignment = function() {
+    if (window.isProfDrawing) return alert("⚠️ Please finish the centerline first (press 'Finish Centerline' / 'Finish Editing').");
+    if (!window.profCenterlinePts || window.profCenterlinePts.length < 2) return alert("⚠️ Please draw a centerline with at least 2 points.");
+
+    // Setting/Centerline အပြောင်းအလဲ မကျန်စေရန် သိမ်းတိုင်း ပြန်တွက်သည်
+    window.processProfileSection();
+    if (!window.profSectionData) return;
+
+    let existing = window.profActiveId ? window.profAlignments.find(a => a.id === window.profActiveId) : null;
+    let snap = {
+        pts: JSON.parse(JSON.stringify(window.profCenterlinePts)),
+        settings: window.profSnapshotSettings(),
+        sectionData: window.profSectionData
+    };
+    if (existing) {
+        Object.assign(existing, snap);
+    } else {
+        window.profAlignments.push(Object.assign({
+            id: 'pf' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            name: window.profNextName(),
+            color: window.PROF_ALIGN_COLORS[window.profAlignments.length % window.PROF_ALIGN_COLORS.length]
+        }, snap));
+    }
+    let savedName = existing ? existing.name : window.profAlignments[window.profAlignments.length - 1].name;
+    window.profNewAlignment(true);
+    let sum = document.getElementById('prof_summary'), box = document.getElementById('prof_status_box');
+    if (box && sum) { box.classList.remove('hidden'); sum.innerHTML = `<div style="font-size:14px; font-weight:bold; color:#047857;">✅ ${savedName} saved</div>Draw the next alignment, or Export all.`; }
+};
+
+window.profEditAlignment = function(id) {
+    let al = window.profAlignments.find(a => a.id === id);
+    if (!al) return;
+    if (window.profActiveId !== id && window.profEditorDirty() && !confirm("Discard the centerline currently in the editor and edit " + al.name + "?")) return;
+    if (window.isProfDrawing) window.profStopDrawing();
+    if (window.leafletMap) window.leafletMap.closePopup();
+
+    window.profActiveId = id;
+    window.profCenterlinePts = JSON.parse(JSON.stringify(al.pts));
+    window.profHistory = [];
+    window.profDraftPoint = null;
+    window.profMoveIndex = null;
+    window.profSectionData = null;
+    let box = document.getElementById('prof_status_box');
+    if (box) box.classList.add('hidden');
+    window.profApplySettings(al.settings);
+
+    if (window.leafletMap) {
+        let ll = window.profAlignLatLngs(al.pts);
+        if (ll.length > 1) window.leafletMap.fitBounds(L.latLngBounds(ll), { padding: [40, 40] });
+    }
+    window.profStartDrawing(true);       // တန်းခါ Edit mode ဝင်သည်
+};
+
+window.profDeleteAlignment = function(id) {
+    let al = window.profAlignments.find(a => a.id === id);
+    if (!al || !confirm("Delete " + al.name + "?")) return;
+    window.profAlignments = window.profAlignments.filter(a => a.id !== id);
+    if (window.leafletMap) window.leafletMap.closePopup();
+    if (window.profActiveId === id) window.profNewAlignment(true);
+    else { window.profUpdateBoundaryUI(); window.profRenderAlignList(); }
+};
+
+window.profRenameAlignment = function(id) {
+    let al = window.profAlignments.find(a => a.id === id);
+    if (!al) return;
+    let nm = prompt("Alignment name:", al.name);
+    if (nm === null) return;
+    nm = nm.trim();
+    if (!nm) return;
+    al.name = nm.replace(/[\r\n,]/g, ' ').substring(0, 40);
+    window.profUpdateBoundaryUI();
+    window.profRenderAlignList();
+};
+
+window.profZoomAlignment = function(id) {
+    let al = window.profAlignments.find(a => a.id === id);
+    if (!al || !window.leafletMap) return;
+    let ll = window.profAlignLatLngs(al.pts);
+    if (ll.length > 1) window.leafletMap.fitBounds(L.latLngBounds(ll), { padding: [40, 40] });
+};
+
+window.profRenderAlignList = function() {
+    let div = document.getElementById('prof_align_list');
+    if (!div) return;
+    if (window.profAlignments.length === 0) {
+        div.innerHTML = '<div style="font-size:11px; color:#64748b;">No saved alignments yet. Draw a centerline → Save Alignment.</div>';
+        return;
+    }
+    div.innerHTML = window.profAlignments.map(al => {
+        let isActive = (al.id === window.profActiveId);
+        let len = (al.sectionData && al.sectionData.totalLength) ? al.sectionData.totalLength.toFixed(1) + ' m' : '-';
+        let nSt = (al.sectionData && al.sectionData.stations) ? al.sectionData.stations.length : 0;
+        let bs = 'border:none; border-radius:4px; color:#fff; font-size:12px; padding:5px 7px; font-weight:bold;';
+        return `<div style="display:flex; align-items:center; gap:5px; padding:6px; margin-top:4px; border-radius:6px; background:${isActive ? 'rgba(245,158,11,0.18)' : 'rgba(148,163,184,0.12)'}; border:1px solid ${isActive ? '#f59e0b' : 'var(--input-border)'};">
+            <span style="width:12px; height:12px; border-radius:50%; background:${al.color}; flex:none;"></span>
+            <div style="flex:1; min-width:0; font-size:12px; line-height:1.25;">
+                <b>${window.escHtml(al.name)}</b>${isActive ? ' <span style="color:#d97706;">· editing</span>' : ''}<br>
+                <span style="font-size:10px; color:#64748b;">${al.pts.length} pts · ${len} · ${nSt} CS</span>
+            </div>
+            <button style="${bs} background:#f59e0b;" onclick="window.profEditAlignment('${al.id}')">✏️</button>
+            <button style="${bs} background:#0284c7;" onclick="window.profZoomAlignment('${al.id}')">🔍</button>
+            <button style="${bs} background:#64748b;" onclick="window.profRenameAlignment('${al.id}')">Aa</button>
+            <button style="${bs} background:#ef4444;" onclick="window.profDeleteAlignment('${al.id}')">🗑️</button>
+        </div>`;
+    }).join('');
+};
+
+// သိမ်းထားသော alignment များကို map ပေါ်ပြသည် (လက်ရှိ Edit လုပ်နေသည့်တစ်ခုကို မပြ - ၎င်းက ပုံမှန် layer နှင့် ပြနေပြီ)
+window.profRenderSavedAlignments = function() {
+    if (window.leafletMap && window.profSavedLayer) { window.leafletMap.removeLayer(window.profSavedLayer); window.profSavedLayer = null; }
+    window.profRenderAlignList();
+    if (!window.leafletMap) return;
+    let drawing = !!window.isProfDrawing;
+    let layers = [];
+    window.profAlignments.forEach(al => {
+        if (al.id === window.profActiveId) return;
+        let ll = window.profAlignLatLngs(al.pts);
+        if (ll.length < 2) return;
+        let line = L.polyline(ll, { color: al.color, weight: 4, opacity: 0.85, interactive: !drawing });
+        line.on('click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            let html = `<div style="text-align:center; line-height:1.3;">
+                <div style="font-weight:bold; font-size:12px; color:${al.color};">${window.escHtml(al.name)}</div>
+                <div style="display:flex; gap:4px; margin-top:5px;">
+                    <button class="so-popup-btn" style="background:#f59e0b; padding:4px 8px; font-size:11px; font-weight:bold; border-radius:3px; flex:1;" onclick="event.stopPropagation(); window.profEditAlignment('${al.id}');">✏️ Edit</button>
+                    <button class="so-popup-btn" style="background:#ef4444; padding:4px 8px; font-size:11px; font-weight:bold; border-radius:3px; flex:1;" onclick="event.stopPropagation(); window.profDeleteAlignment('${al.id}');">🗑️ Delete</button>
+                </div></div>`;
+            L.popup().setLatLng(e.latlng).setContent(html).openOn(window.leafletMap);
+        });
+        layers.push(line);
+        let m = L.marker(ll[0], { interactive: false, icon: L.divIcon({ className: 'bdy-point-marker', html: `<div style="width:10px; height:10px; background:#fff; border:3px solid ${al.color}; border-radius:50%;"></div>`, iconSize: [10, 10], iconAnchor: [5, 5] }) });
+        m.bindTooltip(`<b style="color:${al.color}; font-size:10px;">${window.escHtml(al.name)}</b>`, { permanent: true, direction: 'top', className: 'pt-tooltip', offset: [0, -5] });
+        layers.push(m);
+    });
+    if (layers.length) window.profSavedLayer = L.layerGroup(layers).addTo(window.leafletMap);
+};
+
+setTimeout(function() { if (window.profRenderAlignList) window.profRenderAlignList(); }, 0);
+
+// Export အတွက် alignment စာရင်း (သိမ်းထားသည်များ + Edit/Calculate လုပ်ထားသော editor ၏ နောက်ဆုံးအခြေအနေ)
+window.profCollectExportAlignments = function() {
+    let list = [];
+    let editorReady = !!window.profSectionData && window.profCenterlinePts.length >= 2;
+    window.profAlignments.forEach(al => {
+        if (al.id === window.profActiveId && editorReady) {
+            list.push({ name: al.name, pts: window.profCenterlinePts, settings: window.profSnapshotSettings(), sectionData: window.profSectionData });
+        } else if (al.sectionData) {
+            list.push({ name: al.name, pts: al.pts, settings: al.settings, sectionData: al.sectionData });
+        }
+    });
+    if (!window.profActiveId && editorReady) {
+        list.push({ name: window.profNextName(), pts: window.profCenterlinePts, settings: window.profSnapshotSettings(), sectionData: window.profSectionData });
+    }
+    return list;
+};
+
+// ---- Calculate All: Alignment အားလုံးကို တစ်ခုချင်း (ကိုယ်ပိုင် Setting ဖြင့်) ပြန်တွက်ပြီး အကျဉ်းပြသည် ----
+// Topo surface ပြန်ထုတ်ပြီးနောက် alignment အားလုံးကို ပြန်လည်မွမ်းမံရန်လည်း သုံးသည်
+window.profCalcAll = function() {
+    if (window.isProfDrawing) return window.mapToast("Finish the centerline first (tap ✔ Done)");
+    if (!window.topoTriangles || window.topoTriangles.length === 0) return alert("⚠️ Topo Surface is missing. Please generate surface first.");
+
+    let editorN = window.profCenterlinePts.length;
+    let items = [];
+    window.profAlignments.forEach(al => {
+        if (al.id === window.profActiveId && editorN >= 2) items.push({ al: null, editor: true, name: al.name + " (editing)", pts: window.profCenterlinePts, settings: window.profSnapshotSettings() });
+        else items.push({ al: al, editor: false, name: al.name, pts: al.pts, settings: al.settings });
+    });
+    if (!window.profActiveId && editorN >= 2) items.push({ al: null, editor: true, name: window.profNextName() + " (not saved)", pts: window.profCenterlinePts, settings: window.profSnapshotSettings() });
+    if (items.length === 0) return alert("⚠️ Draw a centerline and save it first.");
+
+    let keepPts = window.profCenterlinePts, keepSettings = window.profSnapshotSettings(), keepData = window.profSectionData;
+    let editorData = null, rows = [];
+    try {
+        items.forEach(it => {
+            window.profApplySettings(it.settings);
+            window.profCenterlinePts = it.pts;
+            window.profSectionData = null;
+            window.processProfileSection(true);
+            let sd = window.profSectionData;
+            if (sd && it.al) it.al.sectionData = sd;
+            if (it.editor) editorData = sd;
+            rows.push({ name: it.name, sd: sd });
+        });
+    } finally {
+        window.profCenterlinePts = keepPts;
+        window.profApplySettings(keepSettings);
+        window.profSectionData = editorData || keepData;
+    }
+
+    let ok = rows.filter(r => r.sd).length;
+    let html = '<div class="pf-sum-title">✅ Calculated ' + ok + '/' + rows.length + ' alignment' + (rows.length > 1 ? 's' : '') + '</div>' +
+        '<table class="pf-sum-table"><tr><th>Alignment</th><th>Length</th><th>CS</th><th>Min Z</th></tr>' +
+        rows.map(r => r.sd
+            ? '<tr><td>' + window.escHtml(r.name) + '</td><td>' + r.sd.totalLength.toFixed(1) + ' m</td><td>' + r.sd.stations.length + '</td><td>' + r.sd.minZ.toFixed(2) + '</td></tr>'
+            : '<tr><td>' + window.escHtml(r.name) + '</td><td colspan="3">⚠️ failed</td></tr>').join('') + '</table>';
+    let box = document.getElementById('prof_status_box'), sum = document.getElementById('prof_summary');
+    if (box && sum) { box.classList.remove('hidden'); sum.innerHTML = html; }
+    window.profRefreshControls();
+};
+
+// Setting box ခေါင်းစဉ်အောက် (ခေါက်ထားစဉ်ပြမည့်) အကျဉ်းတစ်ကြောင်း
+window.profRefreshSummaries = function() {
+    if (typeof window.accSetSummary !== 'function') return;
+    let v = id => { let e = document.getElementById(id); return e ? e.value : ''; };
+    let chk = id => { let e = document.getElementById(id); return !!(e && e.checked); };
+    window.accSetSummary('prof:common', 'CH every ' + v('prof_interval') + ' m · plan text ' + v('prof_ch_text_h') + ' m');
+    window.accSetSummary('prof:pf', 'H 1:' + v('prof_h_scale') + ' · V 1:' + v('prof_v_scale') + ' · grid ' + v('prof_grid_z_int') + ' m' + (chk('prof_draw_offsets') ? ' · offsets ' + v('prof_pf_left') + '/' + v('prof_pf_right') + ' m' : ''));
+    window.accSetSummary('prof:cs', 'sampling ' + v('prof_sampling') + ' m · offsets ' + v('prof_cs_left') + '/' + v('prof_cs_right') + ' m · H 1:' + v('prof_cs_h_scale') + (v('prof_cs_v_scale') ? ' · V 1:' + v('prof_cs_v_scale') : ''));
+};
+setTimeout(function() {
+    let panel = document.getElementById('prof_controls_panel');
+    if (panel) { panel.addEventListener('input', window.profRefreshSummaries); panel.addEventListener('change', window.profRefreshSummaries); }
+    window.profRefreshSummaries();
+}, 0);
+
+// ---- PF/CS provider (ဘုံ Draw toolbar) ----
+window.registerDrawBar({ name: 'prof', tool: 'prof', persistent: true, fn: function() {
+    if (!window.isToolPanelVisible('cogo_prof_tool')) return null;
+    if (!window.isProfDrawing && !(window.topoTriangles && window.topoTriangles.length > 0)) return null;   // Topo surface မထုတ်ရသေးလျှင် မပြ
+    if (window.drawBarMenuOwner === 'prof') {
+        return window.drawBarMenuCfg("Clear what?", [
+            { text: "Current", tone: "amber", fn: () => window.profClear('current') },
+            { text: "Saved", tone: "sky", fn: () => window.profClear('saved') },
+            { text: "Both", tone: "red", fn: () => window.profClear('both') }
+        ]);
+    }
+    let drawing = !!window.isProfDrawing, n = window.profCenterlinePts.length;
+    let al = window.profActiveId ? window.profAlignments.find(a => a.id === window.profActiveId) : null;
+    let pre = al ? (al.name + " · ") : "";
+    let hint;
+    if (drawing) hint = n < 2 ? (pre + "Tap map → ➕ Add (" + n + " pts, need 2+)") : (pre + n + " pts · tap a point: Move/Delete · tap the line: Insert");
+    else hint = n >= 2 ? (al ? ("Editing " + al.name + " · press 💾 Update") : (n + " pts · press 💾 Save")) : "Tap ✏️ Draw, then tap the map";
+    return { hint: hint, buttons: [
+        { text: drawing ? "✏️ Draw ●" : (n > 0 ? "✏️ Edit" : "✏️ Draw"), tone: "amber", active: drawing, fn: () => window.toggleProfDrawMode() },
+        { text: "↩ Undo", tone: "violet", fn: () => window.drawBarUndo() },
+        { text: "🗑️ Clear", tone: "slate", fn: () => window.openDrawBarMenu('prof') },
+        { text: al ? "💾 Update" : "💾 Save", tone: "purple", hidden: drawing || n < 2, fn: () => window.profSaveAlignment() },
+        { text: "✔ Done", tone: "red", hidden: !drawing, fn: () => window.profStopDrawing() }
+    ]};
+}});
+
+// Shared Undo ခလုတ်နှိပ်ရင် အလုပ်လုပ်အောင် Hook ဝင်ထည့်ခြင်း
+let _oldHandleSharedMapUndoProf = window.handleSharedMapUndo;
+window.handleSharedMapUndo = function() {
+    if (window.isProfDrawing) {
+        window.undoProfCenterline();
+    } else if (typeof _oldHandleSharedMapUndoProf === 'function') {
+        _oldHandleSharedMapUndoProf();
     }
 };

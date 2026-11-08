@@ -396,6 +396,11 @@
 <button class="btn-action" style="background:#059669; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1); " onclick="openCogoTool('vol')">
         <span style="font-size:24px;">📦</span> <span>Earthwork / Volume</span>
     </button>
+
+<!-- 🔴 Profile & Section ခလုတ်အသစ် 🔴 -->
+<button class="btn-action" style="background:#0284c7; color:#fff; border:none; padding:18px; font-size:16px; font-weight:bold; border-radius:12px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);" onclick="openCogoTool('prof')">
+    <span style="font-size:24px;">🛣️</span> <span>Profile & Cross Section</span>
+</button>
                 </div>
             </div>
         </div>
@@ -692,8 +697,10 @@
 <!-- ========================================== -->
 <div id="cogo_topo_tool" class="hidden">
 <div id="topo_controls_panel">
+<div class="acc-tools"><button type="button" class="acc-tool-btn" onclick="if(typeof accAll === 'function') accAll('topo', false)">&#9656; Collapse all</button><button type="button" class="acc-tool-btn" onclick="if(typeof accAll === 'function') accAll('topo', true)">&#9662; Expand all</button></div>
     
     <!-- 1. Coordinate System Selection -->
+<div data-acc="topo:coord">
     <label class="v2-label" style="margin-top:0; color:#1e40af; font-weight:bold;">1. Data Coordinate System</label>
     <select id="topo_datum" class="v2-input" style="margin-bottom:5px;" onchange="if(typeof toggleTopoUI === 'function') toggleTopoUI()">
         <option value="SVY21">🇸🇬 SVY21 (Local N, E)</option>
@@ -711,9 +718,10 @@
     </div>
     
     <p id="topo_local_warn" style="font-size:11px; color:#d97706; margin-top:0; margin-bottom:10px;">* Local Grid uses a blank map background.</p>
+</div>
 
     <!-- 2. Contour Settings -->
-    <div style="background:#f1f5f9; padding:10px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:10px;">
+    <div data-acc="topo:contour" style="background:#f1f5f9; padding:10px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:10px;">
         <label class="v2-label" style="margin-top:0; color:#059669; font-weight:bold;">2. Contour Settings</label>
         
         <!-- 🔴 အသစ်ပြင်ဆင်ချက်: အကွက် (၄) ခုကို တစ်တန်းတည်းထားပြီး နေရာကျစ်လျစ်အောင် ပြုလုပ်ခြင်း -->
@@ -727,12 +735,8 @@
                 <input type="text" id="topo_minor_int" class="v2-input" value="0.2" style="margin-bottom:0; padding:6px 4px; font-size:12px; text-align:center;">
             </div>
             <div style="flex:1;">
-                <label style="font-size:10px; color:var(--text); white-space:nowrap;">Label Spc</label>
-                <input type="text" id="topo_label_space" class="v2-input" value="15.0" style="margin-bottom:0; padding:6px 4px; font-size:12px; text-align:center;">
-            </div>
-            <div style="flex:1;">
                 <label style="font-size:10px; color:var(--text); white-space:nowrap;">Txt Hgt</label>
-                <input type="text" id="topo_text_height" class="v2-input" value="0.1" style="margin-bottom:0; padding:6px 4px; font-size:12px; text-align:center;">
+                <input type="text" id="topo_text_height" class="v2-input" value="0.1" oninput="if(typeof refreshContourLabels === 'function') refreshContourLabels()" style="margin-bottom:0; padding:6px 4px; font-size:12px; text-align:center;">
             </div>
         </div>
 
@@ -767,9 +771,25 @@
         </div>
     </div>
 
-    <!-- 3. Boundary Settings -->
-    <div style="background:var(--res-bg); padding:10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px;">
-        <label class="v2-label" style="margin-top:0; font-weight:bold; color:#ef4444;">3. Surface Boundary</label>
+<!-- 3. Map Layout Settings -->
+    <div data-acc="topo:layout" style="background:#e0f2fe; padding:10px; border-radius:8px; border:1px solid #bae6fd; margin-bottom:10px;">
+        <label class="v2-label" style="margin-top:0; color:#0369a1; font-weight:bold;">3. Map Layout (For DXF Export)</label>
+        
+        <div style="display:flex; gap:10px; margin-bottom:5px;">
+            <div style="flex:2;">
+                <label style="font-size:11px; color:var(--text);">Map Title</label>
+                <input type="text" id="topo_map_title" class="v2-input" placeholder="e.g. YE VILLAGE AREA" value="TOPOGRAPHIC MAP" style="margin-bottom:0;">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:11px; color:var(--text);">Grid Interval (m)</label>
+                <input type="number" id="topo_grid_interval" class="v2-input" value="50" style="margin-bottom:0;">
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Boundary Settings -->
+    <div data-acc="topo:bdy" style="background:var(--res-bg); padding:10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px;">
+        <label class="v2-label" style="margin-top:0; font-weight:bold; color:#ef4444;">4. Surface Boundary</label>
         
         <select id="topo_bdy_method" class="v2-input" style="margin-bottom:5px;" onchange="if(typeof toggleTopoBoundary === 'function') toggleTopoBoundary()">
             <option value="auto">🪄 Auto Boundary (Convex Hull)</option>
@@ -785,39 +805,13 @@
 
         <!-- Manual Draw Box -->
         <div id="bdy_manual_div" class="hidden">
-            <p style="font-size:11px; color:var(--label-text); margin:5px 0;">Load CSV first, then tap points on the map.</p>
-            
-            <div style="display:flex; gap:5px; margin-bottom: 5px;">
-                <button id="btn_draw_bdy" class="btn-action" style="background:#f59e0b; flex:2; font-size:12px; padding:8px;" onclick="if(typeof toggleBoundaryDrawMode === 'function') toggleBoundaryDrawMode()">✏️ Outer Boundary</button>
-                <button class="btn-action" style="background:#ef4444; flex:1; font-size:12px; padding:8px;" onclick="if(typeof clearManualBoundary === 'function') clearManualBoundary()">🗑️ Clear</button>
-            </div>
-            
-            <!-- 🔴 Exclude Area (Breakline) အတွက် နေရာ (Undo ကို Panel ကနေ ဖြုတ်လိုက်ပါပြီ) -->
-            <div style="display:flex; gap:5px; border-top: 1px dashed var(--input-border); padding-top: 5px;">
-                <button id="btn_draw_exclude" class="btn-action" style="background:#0284c7; flex:2; font-size:12px; padding:8px;" onclick="if(typeof toggleExcludeDrawMode === 'function') toggleExcludeDrawMode()">🚫 Exclude Area</button>
-                <button class="btn-action" style="background:#ef4444; flex:1; font-size:12px; padding:8px;" onclick="if(typeof clearExcludeBoundaries === 'function') clearExcludeBoundaries()">🗑️ Clear</button>
-            </div>
-        </div>
-    </div>
-
-<!-- 4. အသစ်ထပ်ဖြည့်ထားသော Map Layout Settings -->
-    <div style="background:#e0f2fe; padding:10px; border-radius:8px; border:1px solid #bae6fd; margin-bottom:10px;">
-        <label class="v2-label" style="margin-top:0; color:#0369a1; font-weight:bold;">4. Map Layout (For DXF Export)</label>
-        
-        <div style="display:flex; gap:10px; margin-bottom:5px;">
-            <div style="flex:2;">
-                <label style="font-size:11px; color:var(--text);">Map Title</label>
-                <input type="text" id="topo_map_title" class="v2-input" placeholder="e.g. YE VILLAGE AREA" value="TOPOGRAPHIC MAP" style="margin-bottom:0;">
-            </div>
-            <div style="flex:1;">
-                <label style="font-size:11px; color:var(--text);">Grid Interval (m)</label>
-                <input type="number" id="topo_grid_interval" class="v2-input" value="50" style="margin-bottom:0;">
-            </div>
+            <p style="font-size:11px; color:var(--label-text); margin:5px 0; line-height:1.5;">Load CSV first. Then use the buttons at the <b>bottom of the map</b>:<br>&#9999;&#65039; Outer &middot; &#128683; Exclude &middot; &#8617; Undo &middot; &#128465;&#65039; Clear &middot; &#10004; Done. Tap topo points on the map to add vertices.</p>
         </div>
     </div>
 
    <!-- 5. Load CSV & Generate -->
     <!-- 🔴 အသစ်ထည့်ထားသော CSV Format ရွေးချယ်ရန် နေရာ -->
+<div data-acc="topo:csv">
     <label class="v2-label" style="margin-top:0; color:#1e40af; font-weight:bold;">5. CSV File Format</label>
     <select id="topo_csv_format" class="v2-input" style="margin-bottom:10px;">
         <option value="PNEZD">Point, Northing, Easting, Z, Code (PNEZD)</option>
@@ -830,6 +824,7 @@
         <button class="btn-action" style="background:#10b981; flex:1; padding:15px; font-size:14px;" onclick="if(typeof processTopoSurface === 'function') processTopoSurface()">⚙️ Generate Topo</button>
     </div>
 
+</div>
 <!-- 🔴 အသစ်ထပ်ဖြည့်ရန်: CSV Status ပြမည့်နေရာ -->
     <div id="topo_status" style="margin-top:10px; font-size:13px; font-weight:bold; text-align:center; display:none;"></div>
 
@@ -844,6 +839,21 @@
             <!-- 🔴 အသစ်ထည့်ထားသော 3D KML ခလုတ် -->
             <button class="btn-action" style="background:#8b5cf6; flex:1; padding:12px; font-size:13px;" onclick="if(typeof exportTopo3DKML === 'function') exportTopo3DKML()">🌍 Export 3D KML</button>
         </div>
+        <!-- Contour Labels (Label Line) -->
+        <div id="topo_label_box" class="lbl-box">
+            <label class="lbl-title">&#127991;&#65039; Contour Labels - draw a line across the contours</label>
+            <div class="btn-row">
+                <button id="btn_label_draw" class="btn-action btn-sm tone-rose f2" onclick="if(typeof toggleLabelLineDraw === 'function') toggleLabelLineDraw()">&#127991;&#65039; Draw Label Line</button>
+                <button class="btn-action btn-sm tone-slate f1" onclick="if(typeof clearLabelLines === 'function') clearLabelLines()">&#128465;&#65039; Clear</button>
+            </div>
+            <button id="btn_label_mode" class="btn-action btn-sm tone-teal w100" style="margin-top:6px;" onclick="if(typeof toggleLabelQuickMode === 'function') toggleLabelQuickMode()">&#9889; Quick: 2 taps = 1 line (tap to switch)</button>
+            <div class="chk-row">
+                <input type="checkbox" id="topo_label_minor" onchange="if(typeof refreshContourLabels === 'function') refreshContourLabels()">
+                <label for="topo_label_minor">Also label minor contours</label>
+            </div>
+            <div id="topo_label_info" class="note">No label line yet - no contour labels are shown.</div>
+        </div>
+
         <div style="display:flex; gap:5px;">
             <button class="btn-action" style="background:#ef4444; width:100%; padding:12px; font-size:13px;" onclick="if(typeof clearTopoData === 'function') clearTopoData()">🗑️ Clear Data</button>
         </div>
@@ -874,9 +884,10 @@
  <!-- ========================================== -->
                     <div id="cogo_vol_tool" class="hidden">
                     <div id="vol_controls_panel">
+<div class="acc-tools"><button type="button" class="acc-tool-btn" onclick="if(typeof accAll === 'function') accAll('vol', false)">&#9656; Collapse all</button><button type="button" class="acc-tool-btn" onclick="if(typeof accAll === 'function') accAll('vol', true)">&#9662; Expand all</button></div>
                         
                         <!-- 1. Data Source -->
-                        <div style="background:#f1f5f9; padding:10px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:10px;">
+                        <div data-acc="vol:src" style="background:#f1f5f9; padding:10px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:10px;">
                             <label class="v2-label" style="margin-top:0; color:#1e40af; font-weight:bold;">1. Select Data Source</label>
                             
                             <div style="display:flex; flex-direction:column; gap:8px; margin-top:5px;">
@@ -896,19 +907,15 @@
                         </div>
 
                         <!-- 2. Draw Boundary -->
-                        <div style="background:var(--res-bg); padding:10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px;">
+                        <div data-acc="vol:draw" style="background:var(--res-bg); padding:10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px;">
                             <label class="v2-label" style="margin-top:0; font-weight:bold; color:#ef4444;">2. Draw Calculation Boundary</label>
                             <p style="font-size:11px; color:var(--label-text); margin:5px 0;">Tap to place point, Drag to adjust, then click Add Point.</p>
                             
-                            <div style="display:flex; gap:5px;">
-                                <button id="btn_vol_draw" class="btn-action" style="background:#f59e0b; flex:2; font-size:12px; padding:10px;" onclick="if(typeof toggleVolDrawMode === 'function') toggleVolDrawMode()">✏️ Draw Boundary</button>
-                                
-                                <button class="btn-action" style="background:#ef4444; flex:1; font-size:12px; padding:10px;" onclick="if(typeof clearVolBoundary === 'function') clearVolBoundary()">🗑️ Clear</button>
-                            </div>
+<div style="font-size:11px; color:var(--label-text); line-height:1.5; margin-bottom:5px;">Use the buttons at the <b>bottom of the map</b>: &#9999;&#65039; Draw &middot; &#8617; Undo &middot; &#128465;&#65039; Clear &middot; &#128190; Save &middot; &#10004; Done.</div>
                         </div>
 
                         <!-- 3. Target Base Level -->
-                        <div id="vol_target_panel" class="hidden" style="background:#e0f2fe; padding:10px; border-radius:8px; border:1px solid #bae6fd; margin-bottom:10px;">
+                        <div data-acc="vol:target" id="vol_target_panel" class="hidden" style="background:#e0f2fe; padding:10px; border-radius:8px; border:1px solid #bae6fd; margin-bottom:10px;">
                             <label class="v2-label" style="margin-top:0; color:#0369a1; font-weight:bold;">3. Target Base Level</label>
                             <select id="vol_base_type" class="v2-input" style="margin-bottom:10px;" onchange="if(typeof renderVolTargetInputs === 'function') renderVolTargetInputs()">
                                 <option value="flat">📏 Flat Base (One Single Level)</option>
@@ -921,7 +928,7 @@
                         </div>
 
                        <!-- 4. Calculation Settings -->
-                        <div id="vol_settings_panel" class="hidden" style="background:#fef3c7; padding:10px; border-radius:8px; border:1px solid #fde68a; margin-bottom:10px;">
+                        <div data-acc="vol:settings" id="vol_settings_panel" class="hidden" style="background:#fef3c7; padding:10px; border-radius:8px; border:1px solid #fde68a; margin-bottom:10px;">
                             <label class="v2-label" style="margin-top:0; color:#d97706; font-weight:bold;">4. Calculation Settings</label>
                             <div style="display:flex; gap:10px; margin-top:5px;">
                                 <div style="flex:1;">
@@ -961,6 +968,87 @@
                         </div>
 <button id="btn_toggle_vol_panel" class="btn-action" style="width:100%; background:#f59e0b; padding:8px; font-size:12px; margin-bottom:10px; border-radius:8px;" onclick="if(typeof toggleVolPanel === 'function') toggleVolPanel()">🔼 Hide Controls & Expand Map</button>
                      </div>  
+<!-- ========================================== -->
+<!-- 8. PROFILE & CROSS SECTION TOOL -->
+<!-- ========================================== -->
+<div id="cogo_prof_tool" class="hidden">
+    <div id="prof_controls_panel">
+        <div class="acc-tools"><button type="button" class="acc-tool-btn" onclick="if(typeof accAll === 'function') accAll('prof', false)">&#9656; Collapse all</button><button type="button" class="acc-tool-btn" onclick="if(typeof accAll === 'function') accAll('prof', true)">&#9662; Expand all</button></div>
+
+        <!-- 1. Alignments (သိမ်းထားသော line များ - တစ်ခုချင်း Setting သီးသန့်) -->
+        <div data-acc="prof:align" id="prof_align_box" class="pf-card pf-violet">
+            <label class="v2-label">1. Alignments</label>
+            <div id="prof_edit_banner" class="pf-banner"></div>
+            <div class="pf-note">Draw a centerline on the map, then press &#128190; Save on the map toolbar. Each alignment keeps its own settings (3-5). Tap &#9999;&#65039; in the list, or tap the line on the map, to edit one.</div>
+            <div id="prof_align_list"></div>
+        </div>
+
+        <!-- 2. Draw -->
+        <div data-acc="prof:draw" class="pf-card pf-blue">
+            <label class="v2-label">2. Draw Alignment (Centerline)</label>
+            <p class="pf-note">Draw the centerline on the map inside the Topo Surface, then press &#128190; Save (it calculates automatically).</p>
+            <div class="pf-note">Use the buttons at the <b>bottom of the map</b>: &#9999;&#65039; Draw/Edit &middot; &#8617; Undo &middot; &#128465;&#65039; Clear &middot; &#128190; Save &middot; &#10004; Done.</div>
+            <div id="prof_cl_info" class="pf-info">No centerline yet.</div>
+        </div>
+
+        <!-- 3. Common Settings -->
+        <div data-acc="prof:common" class="pf-card pf-sky">
+            <label class="v2-label">3. Common Settings</label>
+            <div class="fgrid">
+                <div class="fcell"><label>CH Interval (m)</label><input type="number" id="prof_interval" class="v2-input num-blue" value="20" step="1" min="1"></div>
+                <div class="fcell"><label>Plan CH Text (m)</label><input type="number" id="prof_ch_text_h" class="v2-input" value="1.6" step="0.1" min="0.1"></div>
+            </div>
+        </div>
+
+        <!-- 4. PF Settings -->
+        <div data-acc="prof:pf" class="pf-card pf-amber">
+            <label class="v2-label">4. PF Settings (Profile)</label>
+            <div class="fgrid">
+                <div class="fcell"><label>Horiz Scale 1:</label><input type="number" id="prof_h_scale" class="v2-input" value="1000" step="100" oninput="window.updatePfCsSummary && window.updatePfCsSummary()"></div>
+                <div class="fcell"><label>Vert Scale 1:</label><input type="number" id="prof_v_scale" class="v2-input" value="100" step="10" oninput="window.updatePfCsSummary && window.updatePfCsSummary()"></div>
+                <div class="fcell"><label>Datum Z (Auto)</label><input type="number" id="prof_datum_z" class="v2-input num-red" placeholder="Auto"></div>
+                <div class="fcell"><label>Elev Grid (m)</label><input type="number" id="prof_grid_z_int" class="v2-input num-green" value="10" step="1" oninput="window.updatePfCsSummary && window.updatePfCsSummary()"></div>
+            </div>
+            <div class="offset-box">
+                <label class="switch-row"><input type="checkbox" id="prof_draw_offsets" checked><span class="switch-ui"></span><span>Draw Offset Profiles (Left / Right)</span></label>
+                <div class="fgrid offset-fields">
+                    <div class="fcell sm"><label>Profile Left (m)</label><input type="number" id="prof_pf_left" class="v2-input" value="5" step="1" min="0"></div>
+                    <div class="fcell sm"><label>Profile Right (m)</label><input type="number" id="prof_pf_right" class="v2-input" value="5" step="1" min="0"></div>
+                </div>
+            </div>
+            <div id="prof_pf_summary" class="pf-sum-line"></div>
+        </div>
+
+        <!-- 5. CS Settings -->
+        <div data-acc="prof:cs" class="pf-card pf-green">
+            <label class="v2-label">5. CS Settings (Cross Section)</label>
+            <div class="fgrid">
+                <div class="fcell"><label>CS Sampling (m)</label><input type="number" id="prof_sampling" class="v2-input" value="1" step="0.5" min="0.1"></div>
+                <div class="fcell"><label>CS Elev Grid (m)</label><input type="number" id="prof_cs_grid_z" class="v2-input num-green" value="1" step="0.5" min="0.1" placeholder="Auto" oninput="window.updatePfCsSummary && window.updatePfCsSummary()"></div>
+                <div class="fcell"><label>CS Offset Left (m)</label><input type="number" id="prof_cs_left" class="v2-input" value="15" step="1" min="0"></div>
+                <div class="fcell"><label>CS Offset Right (m)</label><input type="number" id="prof_cs_right" class="v2-input" value="15" step="1" min="0"></div>
+                <div class="fcell"><label>CS Horiz Scale 1:</label><input type="number" id="prof_cs_h_scale" class="v2-input" value="200" step="50" min="1" oninput="window.updatePfCsSummary && window.updatePfCsSummary()"></div>
+                <div class="fcell"><label>CS Vert Scale 1:</label><input type="number" id="prof_cs_v_scale" class="v2-input" placeholder="= Horiz" step="50" min="1" oninput="window.updatePfCsSummary && window.updatePfCsSummary()"></div>
+            </div>
+            <div class="note">Horiz Scale sets text size (2.5 mm on paper). Drawing distances stay 1 m = 1 unit. Vert Scale blank = same as Horiz (no vertical stretch).</div>
+            <div id="prof_cs_summary" class="pf-sum-line"></div>
+        </div>
+
+        <!-- 6. Calculate & Export -->
+        <div data-acc="prof:calc" class="pf-card">
+            <label class="v2-label">6. Calculate &amp; Export</label>
+            <button id="btn_prof_calc" class="btn-action btn-calc" onclick="if(typeof profCalcAll === 'function') profCalcAll()">&#9881;&#65039; Calculate All Alignments</button>
+            <div id="prof_status_box" class="hidden pf-export">
+                <div id="prof_summary" class="pf-summary"></div>
+                <div class="btn-row">
+                    <button class="btn-action btn-sm tone-blue f1" style="padding:12px;font-size:13px;" onclick="if(typeof exportProfileCSV === 'function') exportProfileCSV()">&#128193; Export CSV</button>
+                    <button class="btn-action btn-sm f1" style="background:#ca8a04;padding:12px;font-size:13px;" onclick="if(typeof exportProfileDXF === 'function') exportProfileDXF()">&#128506;&#65039; Export DXF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <button id="btn_toggle_prof_panel" class="btn-action" style="width:100%; background:#f59e0b; padding:8px; font-size:12px; margin-top:10px; border-radius:8px;" onclick="if(typeof toggleProfPanel === 'function') toggleProfPanel()">🔼 Hide Controls & Expand Map</button>
+</div>
                   </div>
                 </div>
             </div>
@@ -1047,34 +1135,42 @@
         <div class="app-card" style="margin-bottom: 0;">
             <div class="card-body" style="padding: 10px;">
                 <!-- Offline Map Buttons Removed -->
-                <div style="background:var(--res-bg); padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); margin-bottom:10px; display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; align-items:center;">
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_dxf_lines" checked onchange="toggleDxfLayers()"> 〰️ Dxf Lines</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_dxf_texts" checked onchange="toggleDxfLayers()"> 🔠 Dxf Text</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_so_pts" checked onchange="toggleDxfLayers()"> 🎯 SO Pts</label>
-                    
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_so_texts" checked onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔠 SO Text</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> ⛰️ Topo Pts</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_contours" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 〰️ Contours</label>
-                    
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="tgl_topo_tin" onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 🔺 TIN Surface</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#8b5cf6;"><input type="checkbox" id="tgl_show_pt_name" onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔤 Topo Name</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#059669;"><input type="checkbox" id="tgl_show_z_val" onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> ↕️ Topo Z Val</label>
-                    
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#ea580c;"><input type="checkbox" id="tgl_surf2_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"> 🟠 Surf-2 Pts</label> 
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#0ea5e9;"><input type="checkbox" id="tgl_vol_bdys" checked onchange="if(typeof toggleVolBdyLayer==='function') toggleVolBdyLayer()"> 🟦 Vol BDYs</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#2563eb;"><input type="checkbox" id="tgl_utm_zones" onchange="if(typeof toggleUTMZones==='function') toggleUTMZones()"> 🌐 UTM Zones</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#ef4444;"><input type="checkbox" id="tgl_equator" onchange="if(typeof toggleEquator==='function') toggleEquator()"> ➖ Equator Line</label>
-                    
-                    <!-- 🔴 အသစ်ထည့်ထားသော GPS အမှတ်နှင့် နာမည် အဖွင့်အပိတ် Checkbox (၂) ခု -->
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#b91c1c;"><input type="checkbox" id="tgl_gps_pts" checked onchange="if(typeof toggleDxfLayers==='function') toggleDxfLayers()"> 📍 GPS Pts</label>
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; color:#d97706;"><input type="checkbox" id="tgl_gps_name" checked onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"> 🔤 GPS Name</label>
-                    
-                    <label style="font-size:12px; font-weight:bold; cursor:pointer; grid-column: 1 / -1; border-top:1px dashed #ccc; padding-top:6px;"><input type="checkbox" id="tgl_dxf_dark" onchange="reRenderDXFColors()"> 🌙 Use Dark Colors for DXF</label>
+                <!-- 🗺️ Layers (အုပ်စုခွဲ - data ရှိမှ အုပ်စုပေါ်၊ ခေါက်ထား၍ရ၊ ရွေးထားတာ မှတ်ထားသည်) -->
+                <div id="layers_box" class="layers-box" data-acc="map:layers">
+                    <label class="v2-label">&#128506;&#65039; Layers <span id="layers_count" class="layers-count"></span></label>
+                    <div>
+                        <div class="layer-group" data-lg="dxf"><div class="lg-title">DXF</div><div class="lg-chips">
+                            <label class="chip"><input type="checkbox" id="tgl_dxf_lines" checked onchange="toggleDxfLayers()"><span>〰️ Lines</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_dxf_texts" checked onchange="toggleDxfLayers()"><span>🔠 Text</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_dxf_dark" onchange="reRenderDXFColors()"><span>🌙 Dark colors</span></label>
+                        </div></div>
+                        <div class="layer-group" data-lg="topo"><div class="lg-title">Topo</div><div class="lg-chips">
+                            <label class="chip"><input type="checkbox" id="tgl_topo_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"><span>⛰️ Points</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_topo_contours" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"><span>〰️ Contours</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_topo_tin" onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"><span>🔺 TIN</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_show_pt_name" onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"><span>🔤 Names</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_show_z_val" onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"><span>↕️ Z values</span></label>
+                        </div></div>
+                        <div class="layer-group" data-lg="volume"><div class="lg-title">Volume</div><div class="lg-chips">
+                            <label class="chip"><input type="checkbox" id="tgl_surf2_pts" checked onchange="if(typeof toggleTopoLayers==='function') toggleTopoLayers()"><span>🟠 Surf-2 Pts</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_vol_bdys" checked onchange="if(typeof toggleVolBdyLayer==='function') toggleVolBdyLayer()"><span>🟦 Vol BDYs</span></label>
+                        </div></div>
+                        <div class="layer-group" data-lg="points"><div class="lg-title">Points</div><div class="lg-chips">
+                            <label class="chip"><input type="checkbox" id="tgl_so_pts" checked onchange="toggleDxfLayers()"><span>🎯 SO Pts</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_so_texts" checked onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"><span>🔠 SO Text</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_gps_pts" checked onchange="if(typeof toggleDxfLayers==='function') toggleDxfLayers()"><span>📍 GPS Pts</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_gps_name" checked onchange="if(typeof updateMapPointTexts==='function') updateMapPointTexts()"><span>🔤 GPS Name</span></label>
+                        </div></div>
+                        <div class="layer-group" data-lg="map"><div class="lg-title">Map</div><div class="lg-chips">
+                            <label class="chip"><input type="checkbox" id="tgl_utm_zones" onchange="if(typeof toggleUTMZones==='function') toggleUTMZones()"><span>🌐 UTM Zones</span></label>
+                            <label class="chip"><input type="checkbox" id="tgl_equator" onchange="if(typeof toggleEquator==='function') toggleEquator()"><span>➖ Equator</span></label>
+                        </div></div>
+                    </div>
                 </div>
                 <div class="map-wrapper" id="map_container">
                     <div id="map_view"></div>
-<!-- 🔴 အများသုံး Shared Undo ခလုတ် -->
-                    <button id="sharedMapUndoBtn" class="map-loc-btn" style="bottom:190px; right:10px; background:#8b5cf6; color:white; border-color:#7c3aed; display:none;" onclick="if(typeof handleSharedMapUndo === 'function') handleSharedMapUndo()" title="Undo Last Point">↩️</button>                    <!-- 🔵 Track Button (Icon Only - Square) -->
+                    <!-- Common draw toolbar (Measure / Label / Boundary / Volume / PF) - JS fills in the buttons -->
+                    <div id="draw_bar" class="draw-bar"></div>
                     <button id="trackBtn" class="map-loc-btn" style="bottom:130px; right:10px; background:#3b82f6; color:white; border-color:#2563eb;" onclick="if(typeof toggleTracking === 'function') toggleTracking()" title="Start/Stop Tracking">👣</button>
                     <button id="measureBtn" class="map-loc-btn" style="bottom:70px; right:10px; background:#f59e0b; color:white; border-color:#d97706;" onclick="toggleMeasureMode()" title="Measure Distance">📏</button>
                     <button id="autoCenterBtn" class="map-loc-btn active" onclick="toggleAutoCenter()" title="Find My Location">📍</button>

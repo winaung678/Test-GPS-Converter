@@ -310,7 +310,7 @@ window.switchApp = function(n) {
                 else if (typeof window.toggleDxfLayers === 'function') { window.toggleDxfLayers(); }
             }
             if (n === 1 || n === 2 || n === 5) { window.updateTopoUI(); }
-            let refreshPoints = () => { if (typeof window.refreshMapPointLayers === 'function') window.refreshMapPointLayers(n); };
+            let refreshPoints = () => { if (typeof window.refreshMapPointLayers === 'function') window.refreshMapPointLayers(n); if (typeof window.applyLayerVisibility === 'function') window.applyLayerVisibility(); };
             refreshPoints(); setTimeout(refreshPoints, 200);
         }, 350);
     }
@@ -883,3 +883,220 @@ window.openCogoTool = function(toolName) {
     if(typeof hookCogoTool === 'function') hookCogoTool(toolName);
     setTimeout(window.updateTrackUIVisibility, 100);
 };
+
+// ==========================================
+// --- PROFILE & SECTION TOOL HOOKS ---
+// ==========================================
+let _oldOpenCogoToolProf = window.openCogoTool;
+window.openCogoTool = function(toolName) {
+    if(typeof _oldOpenCogoToolProf === 'function') _oldOpenCogoToolProf(toolName);
+    
+    if (toolName === 'prof') {
+        // အခြား Tool တွေကို ဖျောက်ပြီး Profile Tool ကို ဖော်မည်
+        ['cogo_area_tool', 'cogo_inv_tool', 'cogo_grad_tool', 'cogo_trv_tool', 'cogo_ecc_tool', 'cogo_topo_tool', 'cogo_vol_tool'].forEach(id => {
+            let el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        });
+        
+        document.getElementById('cogo_prof_tool').classList.remove('hidden');
+        
+        let titleEl = document.getElementById('cogo_tool_title');
+        if(titleEl) {
+            titleEl.innerText = '🛣️ Profile & Cross Section'; 
+            titleEl.style.color = '#0284c7';
+        }
+        
+        let mapContainer = document.getElementById('shared_map_view');
+        if(mapContainer) mapContainer.classList.remove('hidden');
+        
+        let gpsBtn = document.getElementById('globalGpsBtn');
+        if(gpsBtn) gpsBtn.classList.add('hidden');
+        
+        setTimeout(() => { 
+            if(window.leafletMap) window.leafletMap.invalidateSize(); 
+            if (typeof window.profUpdateBoundaryUI === 'function') window.profUpdateBoundaryUI();
+        }, 300);
+    }
+};
+
+window.toggleProfPanel = function() {
+    let panel = document.getElementById('prof_controls_panel'); 
+    let mapDiv = document.getElementById('map_view'); 
+    let btn = document.getElementById('btn_toggle_prof_panel');
+    
+    if (panel.classList.contains('hidden')) { 
+        panel.classList.remove('hidden'); 
+        mapDiv.classList.remove('map-expanded'); 
+        btn.innerText = "🔼 Hide Controls & Expand Map"; 
+    } else { 
+        panel.classList.add('hidden'); 
+        mapDiv.classList.add('map-expanded'); 
+        btn.innerText = "🔽 Show Controls"; 
+    }
+    setTimeout(() => { if(window.leafletMap) window.leafletMap.invalidateSize(); }, 350);
+};
+
+// ==========================================
+// 🔴 Profile Tool မပိတ်တဲ့ ပြဿနာကို ဖြေရှင်းပေးမည့် ကုဒ် (Fix)
+// ==========================================
+let _masterFixOpenCogoTool = window.openCogoTool;
+window.openCogoTool = function(toolName) {
+    // ၁။ မူလရှိပြီးသား Function တွေကို အရင်အလုပ်လုပ်ခိုင်းမည်
+    if (typeof _masterFixOpenCogoTool === 'function') {
+        _masterFixOpenCogoTool(toolName);
+    }
+    
+    // ၂။ 'Profile Tool' ကလွဲပြီး တခြား Tool ကို နှိပ်လိုက်တာနဲ့ Profile Tool ကြီးကို အတင်း ဖျောက်(Hide) ပစ်မည်
+    if (toolName !== 'prof') {
+        let profTool = document.getElementById('cogo_prof_tool');
+        if (profTool) {
+            profTool.classList.add('hidden');
+        }
+    }
+};
+
+
+// ==========================================
+// 🗂️ COLLAPSIBLE SECTIONS (Setting box များ ခေါက်/ဖြန့်)
+// HTML မှာ section container တစ်ခုချင်းစီကို data-acc="panel:key" ဖြင့် မှတ်ထားသည်။
+// ပထမဆုံး .v2-label က ခေါင်းစဉ် (နှိပ်ရင် ခေါက်/ဖြန့်)၊ ကျန်အရာအားလုံး body ဖြစ်သည်။
+// ခေါက်ထားစဉ် ခေါင်းစဉ်အောက်မှာ အကျဉ်းတစ်ကြောင်း (accSetSummary) ပြနိုင်သည်။
+// Style များကို style.css (.acc-*) ထဲမှာ။ ခေါက်ထားသော အခြေအနေကို Tab ပြောင်းလည်း မှတ်ထားသည်။
+// ==========================================
+window.accState = window.accState || {};      // key -> true (ခေါက်ထား)
+window.ACC_DEFAULT_COLLAPSED = ['prof:common', 'prof:pf', 'prof:cs', 'map:layers'];   // အစမှာ ခေါက်ထားမည့်အရာများ
+
+window.accSections = function(key) { return Array.prototype.slice.call(document.querySelectorAll('[data-acc="' + key + '"]')); };
+
+window.accApply = function(sec) {
+    let key = sec.getAttribute('data-acc'), collapsed = !!window.accState[key];
+    if (collapsed) sec.classList.add('acc-collapsed'); else sec.classList.remove('acc-collapsed');
+    let arrow = sec.querySelector('.acc-arrow');
+    if (arrow) arrow.textContent = collapsed ? '\u25B8' : '\u25BE';
+};
+
+window.accInit = function() {
+    window.ACC_DEFAULT_COLLAPSED.forEach(function(k) { if (window.accState[k] === undefined) window.accState[k] = true; });
+    Array.prototype.slice.call(document.querySelectorAll('[data-acc]')).forEach(function(sec) {
+        if (sec.getAttribute('data-acc-ready')) return;
+        let head = null;
+        for (let i = 0; i < sec.children.length; i++) { if (sec.children[i].classList.contains('v2-label')) { head = sec.children[i]; break; } }
+        if (!head) return;
+        let body = document.createElement('div');
+        body.className = 'acc-body';
+        let n = head.nextSibling;
+        while (n) { let nx = n.nextSibling; body.appendChild(n); n = nx; }
+        sec.appendChild(body);
+        head.classList.add('acc-head');
+        let arrow = document.createElement('span');
+        arrow.className = 'acc-arrow';
+        head.appendChild(arrow);
+        let sum = document.createElement('span');
+        sum.className = 'acc-sum';
+        head.appendChild(sum);
+        head.addEventListener('click', function() { window.accToggle(sec.getAttribute('data-acc')); });
+        sec.setAttribute('data-acc-ready', '1');
+        window.accApply(sec);
+    });
+};
+
+window.accSet = function(keys, collapsed) {
+    (Array.isArray(keys) ? keys : [keys]).forEach(function(k) {
+        window.accState[k] = !!collapsed;
+        window.accSections(k).forEach(window.accApply);
+    });
+};
+window.accToggle = function(key) { window.accSet(key, !window.accState[key]); };
+window.accCollapse = function(keys) { window.accSet(keys, true); };
+window.accExpand = function(keys) { window.accSet(keys, false); };
+
+// ခေါက်ထားစဉ် ခေါင်းစဉ်အောက်မှာပြမည့် အကျဉ်းစာသား
+window.accSetSummary = function(key, text) {
+    window.accSections(key).forEach(function(sec) {
+        let s = sec.querySelector('.acc-sum');
+        if (s) s.textContent = text || '';
+    });
+};
+
+// prefix ("topo" / "vol" / "prof") ရှိသော section အားလုံးကို ခေါက်/ဖြန့်
+window.accAll = function(prefix, expand) {
+    let keys = [];
+    Array.prototype.slice.call(document.querySelectorAll('[data-acc^="' + prefix + ':"]')).forEach(function(s) {
+        let k = s.getAttribute('data-acc');
+        if (keys.indexOf(k) < 0) keys.push(k);
+    });
+    window.accSet(keys, !expand);
+};
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', window.accInit);
+else window.accInit();
+
+// ==========================================
+// 🗺️ LAYERS BOX (Map layer on/off)
+//  - အုပ်စုခွဲထား (DXF / Topo / Volume / Points / Map) - data ရှိမှ ထို အုပ်စုပေါ်
+//  - ရွေးထားတာကို localStorage မှာ မှတ်ထား (refresh / tab ပြောင်းလည်း မပျောက်)
+//  - applyLayerVisibility(): layer အားလုံးကို checkbox အတိုင်း ပြန်ညှိ (Tab ဖွင့်တိုင်း ခေါ်သည်)
+// ==========================================
+window.LAYER_STORE_KEY = 'svy_layer_states_v1';
+
+window.layersLoadState = function() {
+    try {
+        let o = JSON.parse(localStorage.getItem(window.LAYER_STORE_KEY) || '{}');
+        Object.keys(o).forEach(function(id) {
+            let el = document.getElementById(id);
+            if (el && el.type === 'checkbox') el.checked = !!o[id];
+        });
+    } catch (e) {}
+};
+
+window.layersSaveState = function() {
+    let o = {};
+    Array.prototype.slice.call(document.querySelectorAll('#layers_box input[type="checkbox"]')).forEach(function(el) { o[el.id] = el.checked; });
+    try { localStorage.setItem(window.LAYER_STORE_KEY, JSON.stringify(o)); } catch (e) {}
+};
+
+// Data ရှိမှ အုပ်စုပြ၊ အဖွင့်အရေအတွက်ကို ခေါင်းစဉ်မှာပြ
+window.refreshLayerBox = function() {
+    let box = document.getElementById('layers_box');
+    if (!box) return;
+    let len = function(a) { return Array.isArray(a) ? a.length : 0; };
+    let has = {
+        dxf: len(window.rawDxfEntities) > 0,
+        topo: len(window.topoPoints) > 0 || len(window.volPoints) > 0,
+        volume: len(window.volSurface2Points) > 0 || len(window.savedVolAreas) > 0,
+        points: true, map: true
+    };
+    let on = 0, total = 0;
+    Array.prototype.slice.call(box.querySelectorAll('.layer-group')).forEach(function(g) {
+        let show = has[g.getAttribute('data-lg')] !== false;
+        if (show) g.classList.remove('hidden'); else g.classList.add('hidden');
+        if (!show) return;
+        Array.prototype.slice.call(g.querySelectorAll('input[type="checkbox"]')).forEach(function(c) { total++; if (c.checked) on++; });
+    });
+    let cnt = document.getElementById('layers_count');
+    if (cnt) cnt.textContent = '(' + on + '/' + total + ' on)';
+};
+
+// Layer အားလုံးကို checkbox အခြေအနေအတိုင်း ပြန်ညှိ (idempotent function များသာ ခေါ်သည်)
+window.applyLayerVisibility = function() {
+    // toggleTopoLayers() သည် checkbox အသစ်ဖြစ်လာမှ zoom ဖြစ်စေသည် - ပြန်ညှိရာတွင် မြေပုံမခုန်စေရန် အခြေအနေကို အရင်တူအောင်ထား
+    if (typeof window.layerOn === 'function') {
+        window._prevChkTopoPts = window.layerOn('tgl_topo_pts');
+        window._prevChkContour = window.layerOn('tgl_topo_contours');
+        window._prevChkSurf2 = window.layerOn('tgl_surf2_pts');
+    }
+    ['toggleTopoLayers', 'toggleVolBdyLayer', 'toggleDxfLayers', 'updateMapPointTexts'].forEach(function(fn) {
+        try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.error('applyLayerVisibility', fn, e); }
+    });
+    window.refreshLayerBox();
+};
+
+window.layersInit = function() {
+    window.layersLoadState();
+    let box = document.getElementById('layers_box');
+    if (box) box.addEventListener('change', function() { window.layersSaveState(); window.refreshLayerBox(); });
+    window.refreshLayerBox();
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', window.layersInit);
+else window.layersInit();
+if (typeof setInterval === 'function') setInterval(function() { try { window.refreshLayerBox(); } catch (e) {} }, 1000);

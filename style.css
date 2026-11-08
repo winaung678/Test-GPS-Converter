@@ -171,3 +171,105 @@ select:disabled{opacity:0.6;background:#e2e8f0;cursor:not-allowed;}
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
+
+
+/* =====================================================================
+   UI ADDITIONS (collapsible sections, map draw toolbar, layers box, PF/CS panel)
+   ===================================================================== */
+
+/* ---- Tones: ခလုတ်အရောင်များ (button ပေါ်တွင် class အဖြစ်သုံး) ---- */
+.tone-amber{background:#f59e0b;} .tone-sky{background:#0284c7;} .tone-blue{background:#2563eb;}
+.tone-violet{background:#8b5cf6;} .tone-slate{background:#64748b;} .tone-red{background:#ef4444;}
+.tone-teal{background:#0f766e;} .tone-green{background:#10b981;} .tone-purple{background:#7c3aed;}
+.tone-rose{background:#e11d48;}
+
+/* ---- Small layout helpers ---- */
+.btn-row{display:flex;gap:5px;margin-top:6px;}
+.btn-sm{padding:10px;font-size:12px;}
+.f1{flex:1;} .f2{flex:2;} .w100{width:100%;}
+.chk-row{display:flex;align-items:center;gap:6px;margin-top:6px;}
+.chk-row input{width:16px;height:16px;margin:0;}
+.chk-row label{font-size:11px;color:var(--text);margin:0;cursor:pointer;}
+.note{font-size:10px;color:var(--label-text);line-height:1.5;margin-top:5px;}
+
+/* ---- Collapsible sections (data-acc) ---- */
+.acc-head{display:flex;flex-wrap:wrap;align-items:center;cursor:pointer;user-select:none;-webkit-user-select:none;}
+.acc-arrow{margin-left:auto;padding-left:8px;font-size:12px;color:var(--label-text);}
+.acc-sum{order:3;flex-basis:100%;display:none;margin-top:2px;font-size:10px;font-weight:600;color:var(--label-text);opacity:.85;}
+.acc-collapsed > .acc-body{display:none;}
+.acc-collapsed > .acc-head .acc-sum:not(:empty){display:block;}
+.acc-tools{display:flex;gap:6px;justify-content:flex-end;margin-bottom:6px;}
+.acc-tool-btn{border:1px solid var(--input-border);background:var(--res-bg);color:var(--text);border-radius:6px;padding:4px 8px;font-size:11px;font-weight:bold;cursor:pointer;}
+
+/* ---- Map draw toolbar (ဘုံ toolbar - Measure / Label / Boundary / Volume / PF) ---- */
+.draw-bar{display:none;position:absolute;left:8px;right:64px;bottom:8px;z-index:1000;flex-wrap:wrap;gap:4px;align-items:center;justify-content:center;background:rgba(15,23,42,.82);padding:6px;border-radius:10px;}
+.draw-bar.show{display:flex;}
+.draw-bar.collapsed{right:auto;background:transparent;padding:0;}
+.draw-row{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;}
+.draw-hint{text-align:center;font-size:11px;font-weight:bold;color:#fde68a;}
+.draw-hide{background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:10px;padding:3px 8px;font-size:10px;font-weight:bold;cursor:pointer;}
+.draw-open{background:rgba(15,23,42,.85);color:#fff;border:none;border-radius:16px;padding:7px 12px;font-size:12px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,.4);cursor:pointer;}
+.draw-btn{color:#fff;border:none;border-radius:6px;padding:8px 10px;font-size:12px;font-weight:bold;cursor:pointer;}
+.draw-btn.active{outline:3px solid #fde68a;}
+.map-toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:rgba(15,23,42,.92);color:#fff;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,.4);max-width:80%;text-align:center;pointer-events:none;transition:opacity .3s;}
+
+/* ---- Contour label box (Topo) ---- */
+.lbl-box{background:rgba(225,29,72,.07);border:1px solid #fda4af;border-radius:6px;padding:8px;margin-bottom:8px;}
+.lbl-title{display:block;font-size:12px;font-weight:bold;color:#be123c;}
+.dark-mode .lbl-title{color:#fda4af;}
+
+/* ---- Layers box ---- */
+.layers-box{background:var(--res-bg);padding:8px 10px;border-radius:8px;border:1px solid var(--input-border);margin-bottom:10px;}
+.layers-box > .acc-head{margin-top:0;font-size:12px;}
+.layers-count{margin-left:6px;font-size:11px;font-weight:600;color:var(--label-text);}
+.layer-group{margin-top:8px;}
+.lg-title{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--label-text);margin-bottom:4px;}
+.lg-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--input-border);border-radius:16px;font-size:12px;font-weight:700;color:var(--text);background:var(--card-bg);cursor:pointer;user-select:none;-webkit-user-select:none;}
+.chip input{width:15px;height:15px;margin:0;accent-color:#2563eb;}
+.chip:has(input:checked){border-color:#2563eb;background:rgba(37,99,235,.12);}
+
+/* ---- PF / CS panel ---- */
+.pf-card{background:var(--res-bg);padding:10px;border-radius:8px;border:1px solid var(--input-border);margin-bottom:10px;}
+.pf-card > .v2-label{margin-top:0;font-weight:bold;}
+.pf-sky{background:rgba(2,132,199,.08);border-color:rgba(2,132,199,.35);}   .pf-sky > .v2-label{color:#0369a1;}
+.pf-amber{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.40);} .pf-amber > .v2-label{color:#b45309;}
+.pf-green{background:rgba(16,185,129,.09);border-color:rgba(16,185,129,.40);} .pf-green > .v2-label{color:#047857;}
+.pf-violet > .v2-label{color:#7c3aed;} .pf-blue > .v2-label{color:#0284c7;}
+.dark-mode .pf-sky > .v2-label{color:#7dd3fc;} .dark-mode .pf-amber > .v2-label{color:#fcd34d;}
+.dark-mode .pf-green > .v2-label{color:#6ee7b7;} .dark-mode .pf-violet > .v2-label{color:#c4b5fd;} .dark-mode .pf-blue > .v2-label{color:#7dd3fc;}
+.pf-note{font-size:11px;color:var(--label-text);line-height:1.5;margin:5px 0;}
+.pf-info{margin-top:6px;font-size:11px;font-weight:bold;color:#0369a1;}
+.dark-mode .pf-info{color:#7dd3fc;}
+.pf-banner{display:none;margin-top:6px;padding:6px;border-radius:6px;background:rgba(245,158,11,.18);border:1px solid #f59e0b;font-size:11px;font-weight:bold;color:#b45309;}
+.dark-mode .pf-banner{color:#fcd34d;}
+.pf-summary{background:rgba(16,185,129,.10);border:1px solid #10b981;border-radius:8px;padding:10px;font-size:13px;line-height:1.6;color:var(--text);text-align:center;}
+.pf-sum-title{font-size:14px;font-weight:bold;color:#047857;margin-bottom:6px;}
+.dark-mode .pf-sum-title{color:#6ee7b7;}
+.pf-sum-table{width:100%;border-collapse:collapse;font-size:12px;}
+.pf-sum-table th{font-size:10px;text-transform:uppercase;color:var(--label-text);text-align:right;padding:2px 4px;}
+.pf-sum-table td{text-align:right;padding:3px 4px;border-top:1px solid var(--input-border);}
+.pf-sum-table th:first-child,.pf-sum-table td:first-child{text-align:left;font-weight:bold;}
+.pf-export{margin-top:10px;padding-top:10px;border-top:2px dashed var(--input-border);}
+.btn-calc{width:100%;padding:15px;font-size:15px;margin-top:6px;background:#94a3b8;opacity:.85;}
+.btn-calc.ready{background:#10b981;opacity:1;}
+
+/* Form grid: label + input အရွယ်အစား တစ်ပုံစံတည်း */
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;}
+.fcell label{display:block;margin-bottom:3px;font-size:11px;font-weight:700;color:var(--text);}
+.fcell input{margin:0;text-align:center;}
+.fcell.sm label{font-size:10px;font-weight:600;color:var(--label-text);}
+.fcell.sm input{height:34px;padding:6px;}
+.num-red{color:#b91c1c !important;} .num-green{color:#059669 !important;} .num-blue{color:#1e40af !important;}
+.dark-mode .num-red{color:#fca5a5 !important;} .dark-mode .num-green{color:#6ee7b7 !important;} .dark-mode .num-blue{color:#93c5fd !important;}
+.pf-sum-line{margin-top:8px;font-size:10px;line-height:1.4;font-weight:600;color:var(--label-text);}
+
+/* Switch (checkbox → toggle) */
+.offset-box{margin-top:10px;padding:8px;border-radius:6px;background:rgba(2,132,199,.08);border:1px solid rgba(2,132,199,.35);}
+.switch-row{position:relative;display:flex;align-items:center;gap:8px;margin:0;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;}
+.switch-row input{position:absolute;opacity:0;width:0;height:0;}
+.switch-ui{position:relative;flex:none;width:34px;height:20px;border-radius:10px;background:#94a3b8;transition:.2s;}
+.switch-ui::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;}
+.switch-row input:checked + .switch-ui{background:#0284c7;}
+.switch-row input:checked + .switch-ui::after{left:16px;}
+.offset-box:has(#prof_draw_offsets:not(:checked)) .offset-fields{display:none;}

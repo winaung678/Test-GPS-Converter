@@ -325,7 +325,8 @@ window.importTopoToSetOut = function() {
     }
 };
 
-function savePointsToStorage() { localStorage.setItem('surveyProSetOutPoints', JSON.stringify(window.setOutPoints)); }
+// Area အတွက် Map ပေါ်ထောက်ထားသော ယာယီအမှတ် (tmp) များကို သိမ်းမထားပါ
+function savePointsToStorage() { localStorage.setItem('surveyProSetOutPoints', JSON.stringify(window.setOutPoints.filter(p => !p.tmp))); }
 
 function loadPointsFromStorage() {
     let stored = localStorage.getItem('surveyProSetOutPoints');
@@ -724,8 +725,19 @@ window.clearAreaResultOnly = function() {
     }
 };
 
+// Area Calculator ကို Map ပေါ်ထောက်ရာမှ ဝင်လာသော ယာယီအမှတ် (Map-N) များကို ဖယ်ရှားသည်
+window.removeTempAreaPoints = function() {
+    let before = window.setOutPoints.length;
+    window.setOutPoints = window.setOutPoints.filter(p => !p.tmp);
+    if (window.setOutPoints.length === before) return;
+    if (typeof savePointsToStorage === 'function') savePointsToStorage();
+    if (typeof updateTargetDropdown === 'function') updateTargetDropdown();
+    if (typeof window.populateAreaPoints === 'function') window.populateAreaPoints();
+};
+
 window.clearAreaCalc = function() {
     window.orderedAreaPoints = [];
+    window.removeTempAreaPoints();
     window.updateAreaOrderUI();
     let checkboxes = document.querySelectorAll('#area_point_list input[type="checkbox"]');
     checkboxes.forEach(chk => chk.checked = false);
@@ -865,6 +877,7 @@ window.openCogoTool = function(toolName) {
                 if (typeof showTopoPointsOnMapOnly === 'function') showTopoPointsOnMapOnly();
                 if (window.topoContours && window.topoContours.length > 0 && typeof showContoursOnMap === 'function') showContoursOnMap();
                 if (window.topoTriangles && window.topoTriangles.length > 0 && typeof showTinOnMap === 'function') showTinOnMap();
+                if (typeof window.applyLayerVisibility === 'function') window.applyLayerVisibility();   // Tab ဖွင့်ပြီး layer ပြန်ဆွဲပြီးနောက် checkbox အတိုင်း ပြန်ညှိ
             }, 300);
         } else { mapContainer.classList.add('hidden'); }
     } else if (toolName === 'vol') { 
@@ -876,6 +889,7 @@ window.openCogoTool = function(toolName) {
             if (window.volPoints && window.volPoints.length > 0 && typeof volShowPointsOnMap === 'function') volShowPointsOnMap();
             if (window.volSurface2Points && window.volSurface2Points.length > 0 && typeof volShowSurface2OnMap === 'function') window.volShowSurface2OnMap();
             if (typeof window.toggleVolBdyLayer === 'function') window.toggleVolBdyLayer(); 
+            if (typeof window.applyLayerVisibility === 'function') window.applyLayerVisibility();
         }, 300);
     }
     history.pushState({page: 4, subTool: toolName}, "Cogo Tool", "");
@@ -1353,7 +1367,8 @@ window.plotRecordedPointsOnMap = function() {
 // 🔴 MAP TAP TO AREA FUNCTION (RESTORED)
 // ==========================================
 window.addMapPointToArea = function(lat, lon) {
-    let newName = `Map-${window.setOutPoints.length + 1}`;
+    // နံပါတ်ကို ယာယီအမှတ်အရေအတွက်ကနေ ယူသည် (Clear လုပ်ပြီးလျှင် Map-1 ကပြန်စ)
+    let newName = `Map-${window.setOutPoints.filter(p => p.tmp).length + 1}`;
     
     // Set Out Points Array ထဲသို့ အမှတ်အသစ်အဖြစ် အရင်သွင်းမည် (Area တွက်ရာတွင် လိုအပ်သောကြောင့်)
     window.setOutPoints.push({
@@ -1361,7 +1376,8 @@ window.addMapPointToArea = function(lat, lon) {
         lat: parseFloat(lat), 
         lon: parseFloat(lon), 
         z: 0, 
-        d: "From Map Tap"
+        d: "From Map Tap",
+        tmp: true            // ယာယီအမှတ် (Clear နှိပ်လျှင် ပျက်မည်၊ Storage ထဲ မသိမ်း)
     });
     
     if (typeof savePointsToStorage === 'function') savePointsToStorage(); 
