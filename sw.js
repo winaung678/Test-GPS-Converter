@@ -1,4 +1,4 @@
-const CACHE_NAME = 'survey-pro-cache-v9.2.5'; 
+const CACHE_NAME = 'survey-pro-cache-v9.2.6'; 
 
 const urlsToCache = [
   './',
@@ -19,8 +19,8 @@ const urlsToCache = [
   './formulas.js',
   './globals.js',
   './map_engine.js',
-  './app_conversions.js',
-  './app_survey_tools.js',
+  './module_surface_volume.js',
+  './module_cogo_stakeout.js',
   './app_camera.js',
   './app_logic.js',
   './egm2008_1min.bin',
