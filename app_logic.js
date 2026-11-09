@@ -1064,6 +1064,7 @@ window.refreshLayerBox = function() {
         dxf: len(window.rawDxfEntities) > 0,
         topo: len(window.topoPoints) > 0 || len(window.volPoints) > 0,
         volume: len(window.volSurface2Points) > 0 || len(window.savedVolAreas) > 0,
+        pf: len(window.profAlignments) > 0,
         points: true, map: true
     };
     let on = 0, total = 0;
@@ -1085,7 +1086,7 @@ window.applyLayerVisibility = function() {
         window._prevChkContour = window.layerOn('tgl_topo_contours');
         window._prevChkSurf2 = window.layerOn('tgl_surf2_pts');
     }
-    ['toggleTopoLayers', 'toggleVolBdyLayer', 'toggleDxfLayers', 'updateMapPointTexts'].forEach(function(fn) {
+    ['toggleTopoLayers', 'toggleVolBdyLayer', 'toggleDxfLayers', 'updateMapPointTexts', 'renderLabelLines', 'refreshContourLabels', 'profRenderSavedAlignments'].forEach(function(fn) {
         try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.error('applyLayerVisibility', fn, e); }
     });
     window.refreshLayerBox();

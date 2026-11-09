@@ -2757,10 +2757,12 @@ window.processProfileSection = function(quiet) {
         }
         // [FIX] Interval station က Start/End (vertex၊ အဆုံး) station နဲ့ အရမ်းနီးနေရင် CS ၂ ခုထပ်နေမှာမို့
         // Start/End ကို ထားပြီး Interval station ကို major station အဖြစ်မှ ဖယ်မယ် (Z point ကတော့ ဆက်ရှိတယ်)
-        const mergeGap = 0.05;   // စ/အဆုံး/ချိုးထောင့်နဲ့ 0.05 m အတွင်းမှ interval CH ကို ဖျောက်၊ ကျော်ရင် ၂ ခုလုံးပြ
+        // Cross Section အတွက်သာ: စ/အဆုံး/ချိုးထောင့်နဲ့ 0.5 m အတွင်းမှ interval CS ကို မထုတ် (CS ၂ ခု အကြား 0.5 m ဆိုတာ အဓိပ္ပါယ်မရှိ၊ ချိုးထောင့်ကိုပဲ ထား)
+        // PF table / CH စာရင်းမှာတော့ ၂ ခုလုံး ဆက်ရှိ (csSkip flag သာ မှတ်သည်)
+        const csMergeGap = 0.5;
         let seStns = cleanStns.filter(x => x.isStartEnd);
         cleanStns.forEach(st => {
-            if (!st.isStartEnd && st.isInterval && seStns.some(e => Math.abs(e.ch - st.ch) < mergeGap)) st.isInterval = false;
+            if (!st.isStartEnd && st.isInterval && seStns.some(e => Math.abs(e.ch - st.ch) < csMergeGap)) st.csSkip = true;
         });
         return { stations: cleanStns, dxf: alignDxf, totalLength: currentCh };
     }
@@ -2779,6 +2781,7 @@ window.processProfileSection = function(quiet) {
     stations.forEach(stn => {
         let isMajorStation = stn.isStartEnd || stn.isInterval; 
         if (!isMajorStation) return; 
+        if (stn.csSkip) return;      // ချိုးထောင့် CS နဲ့ အရမ်းနီးသော interval CS
 
         let leftAngle, rightAngle;
         if (stn.isCurve && stn.curveCenter) {
@@ -2829,7 +2832,7 @@ window.processProfileSection = function(quiet) {
         document.getElementById('prof_summary').innerHTML = `
             <div class="pf-sum-title">✅ Independent Profiles Calculated!</div>
             Center Length: <b>${clProfile.totalLength.toFixed(2)} m</b><br>
-            Cross Sections: <b>${window.profSectionData.stations.length}</b> generated.<br>
+            Cross Sections: <b>${window.profSectionData.stations.filter(s => s.csPoints && s.csPoints.length > 1).length}</b> generated.<br>
         `;
     }
     return window.profSectionData;
@@ -3016,6 +3019,13 @@ window.exportProfileDXF = function() {
         ptsObjArray.forEach(p => { let z = p.z !== undefined && p.z !== null ? p.z : 0.0; dxf.push(`0\nVERTEX\n8\n${layer}\n70\n32\n10\n${p.e !== undefined ? p.e.toFixed(3) : p.x.toFixed(3)}\n20\n${p.n !== undefined ? p.n.toFixed(3) : p.y.toFixed(3)}\n30\n${z.toFixed(3)}`); });
         dxf.push(`0\nSEQEND\n8\n${layer}`);
     };
+    // Contour: elevation က မျဉ်းတစ်ကြောင်းလုံးရဲ့ poly.z မှာရှိ (point တစ်ခုချင်းမှာ မရှိ) - Topo DXF လို 3D polyline (flag 8) ဖြင့် Z ပါအောင်ရေး
+    const addContour3D = (layer, poly) => {
+        let zc = poly.z.toFixed(3);
+        dxf.push(`0\nPOLYLINE\n8\n${layer}\n66\n1\n70\n8\n10\n0.0\n20\n0.0\n30\n${zc}`);
+        poly.points.forEach(p => dxf.push(`0\nVERTEX\n8\n${layer}\n70\n32\n10\n${p.e.toFixed(3)}\n20\n${p.n.toFixed(3)}\n30\n${zc}`));
+        dxf.push(`0\nSEQEND\n8\n${layer}`);
+    };
     const addPoint = (layer, x, y, z) => { dxf.push(`0\nPOINT\n8\n${layer}\n10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n30\n${z.toFixed(3)}`); };
     const addSolid = (layer, x1, y1, x2, y2, x3, y3, x4, y4) => { dxf.push(`0\nSOLID\n8\n${layer}\n10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n30\n0.0\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}\n31\n0.0\n12\n${x3.toFixed(3)}\n22\n${y3.toFixed(3)}\n32\n0.0\n13\n${x4.toFixed(3)}\n23\n${y4.toFixed(3)}\n33\n0.0`); };
     const addCircle = (layer, x, y, r) => { dxf.push(`0\nCIRCLE\n8\n${layer}\n10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n30\n0.0\n40\n${r.toFixed(3)}`); };
@@ -3051,10 +3061,10 @@ window.exportProfileDXF = function() {
     if (window.topoContours && window.topoContours.length > 0) {
         window.topoContours.forEach(poly => {
             let layer = poly.isMajor ? "TOPO_MAJOR_CONTOUR" : "TOPO_MINOR_CONTOUR";
-            addPolyline(layer, poly.points, false);
+            addContour3D(layer, poly);
         });
         window.computeContourLabels(planTxtH * 3).forEach(l => {
-            addText("TOPO_LABELS", l.z.toFixed(2), l.e, l.n, planTxtH, 1, l.angleDeg);
+            addText("TOPO_LABELS", l.z.toFixed(3), l.e, l.n, planTxtH, 1, l.angleDeg);
         });
     }
 
@@ -3208,7 +3218,10 @@ window.exportProfileDXF = function() {
     const CW = 0.8;                         // TEXT တစ်လုံး အကျယ် ≈ 0.8 × အမြင့် (ချိန်ဆဖို့)
     const hLab = txtH * 0.9;                // table စာအမြင့်
     const hdrW = txtH * 12;                 // table ဘယ်ဘက် header column အကျယ်
-    const rowH_E = txtH * 7;                // Existing Elevation row
+    // Existing Elevation စာ (၉၀° လှည့်) ဒသမ ၃ လုံး ပါလာသဖြင့် အမြင့်ဆုံး Z စာလုံးရေအလိုက် row အမြင့်ကို လိုအပ်လျှင် တိုး
+    let _pfElevChars = 0;
+    [data.stations, data.leftProfilePoints, data.rightProfilePoints].forEach(arr => (arr || []).forEach(p => { if (p.z !== null && p.z !== undefined) _pfElevChars = Math.max(_pfElevChars, p.z.toFixed(3).length); }));
+    const rowH_E = Math.max(txtH * 7, _pfElevChars * CW * hLab + hLab * 1.6);     // Existing Elevation row
     const rowH_S = txtH * 9;                // Station row
     const rowH_C = txtH * 6;                // Curve Elements row
     const tableH = rowH_E + rowH_S + rowH_C;
@@ -3280,23 +3293,32 @@ window.exportProfileDXF = function() {
         // --- station lines (အနီ) + Elevation / Station စာ ---
         // Station မျဉ်းအားလုံးဆွဲ၊ စာ (rotated) ကို မထပ်အောင် အကွာအလိုက် ရွေးပြ
         let stPts = profilePts.filter(st => st.isStartEnd || st.isInterval);
-        let keepSt = new Set();
+        // ချိုးထောင့် CH နဲ့ Interval CH နီးနေလျှင် (စာထပ်မည့်အနေအထား) တစ်ခုမှ မဖျက်ဘဲ
+        // အုပ်စု၏ ရှေ့ဆုံးကို မျဉ်း၏ ဘယ်ဘက်၊ နောက်ဆုံးကို ညာဘက်သို့ ခွဲရေးသည် (၂ ခုပါလျှင် နှစ်ခုလုံးပေါ်)။
+        // ၃ ခုနှင့်အထက် အုပ်စုတွင် အလယ်ကဟာတွေ မျဉ်းသာကျန် (အလွန်ရှားသည်)။
+        let labelSide = new Map();      // station -> -1 (ဘယ်) | +1 (ညာ) | 0 (စာမရေး)
         {
-            let minX = hLab * PF_LABEL_GAP, lastX = -Infinity;
-            stPts.forEach(st => { if (st.ch - lastX >= minX - 1e-9) { keepSt.add(st); lastX = st.ch; } });
-            let endSt = stPts[stPts.length - 1];
-            if (endSt && !keepSt.has(endSt)) {
-                let kept = stPts.filter(st => keepSt.has(st)); let lastK = kept[kept.length - 1];
-                if (!lastK || endSt.ch - lastK.ch >= minX - 1e-9) keepSt.add(endSt);
-                else if (kept.length > 1) { keepSt.delete(lastK); keepSt.add(endSt); }
+            const clusterGap = hLab * PF_LABEL_GAP;
+            let i = 0;
+            while (i < stPts.length) {
+                let j = i;
+                while (j + 1 < stPts.length && stPts[j + 1].ch - stPts[j].ch < clusterGap - 1e-9) j++;
+                if (j === i) labelSide.set(stPts[i], 1);
+                else {
+                    labelSide.set(stPts[i], -1); labelSide.set(stPts[j], 1);
+                    for (let q = i + 1; q < j; q++) labelSide.set(stPts[q], 0);
+                }
+                i = j + 1;
             }
         }
         stPts.forEach(stn => {
             let x = x0 + stn.ch;
             addLine("PROF_STATION", x, maxY, x, yS);
-            if (!keepSt.has(stn)) return;
-            if (stn.z !== null) addText("PROF_TEXT", stn.z.toFixed(2), x + txtH * 0.75, originY - rowH_E / 2, hLab, 1, 90);
-            addText("PROF_TEXT", stationStr(stn.ch), x + txtH * 0.75, yE - rowH_S / 2, hLab, 1, 90);
+            let side = labelSide.get(stn);
+            if (!side) return;
+            let sideX = side * txtH * 0.75;
+            if (stn.z !== null) addText("PROF_TEXT", stn.z.toFixed(3), x + sideX, originY - rowH_E / 2, hLab, 1, 90);
+            addText("PROF_TEXT", stationStr(stn.ch), x + sideX, yE - rowH_S / 2, hLab, 1, 90);
         });
 
         // --- Curve Elements row: ဖြောင့် / curve အပိုင်းအလိုက် ---
@@ -3345,6 +3367,10 @@ window.exportProfileDXF = function() {
     // CS သည် PF နှင့် သီးခြား scale/စာအရွယ် သုံးသည် (ST.cs)။ တွက်ချက်ပုံများကို getPfCsSettings() နှင့် pickCs* helpers တွင် ပြင်ပါ။
     const CS = ST.cs;
     const cT = CS.txtH;
+    {   // CS Existing Elevation စာ ဒသမ ၃ လုံး - row အမြင့် မလုံလောက်လျှင် တိုး
+        let ch = 0; data.stations.forEach(stn => (stn.csPoints || []).forEach(p => { if (p.z !== null && p.z !== undefined) ch = Math.max(ch, p.z.toFixed(3).length); }));
+        CS.rowE = Math.max(CS.rowE, ch * CW * cT + cT * 1.6);
+    }
     const csTableH = CS.rowE + CS.rowO;
     const csWidth = CS.left + CS.right;
     const csCols = 4;
@@ -3423,7 +3449,7 @@ window.exportProfileDXF = function() {
             if (labelMap.has(pi)) {
                 addLine("CS_GRID", pX, cy, pX, pY);
                 addLine("PROF_STATION", pX, cy, pX, yO);
-                addText("PROF_TEXT", p.z.toFixed(2), pX + cT * 0.75, cy - CS.rowE / 2, cT, 1, 90);
+                addText("PROF_TEXT", p.z.toFixed(3), pX + cT * 0.75, cy - CS.rowE / 2, cT, 1, 90);
                 addText("PROF_TEXT", labelMap.get(pi).toFixed(2), pX + cT * 0.75, yE - CS.rowO / 2, cT, 1, 90);
             } else if (!p.isInterval) {
                 addLine("CS_BREAK_LINE", pX, cy, pX, pY);
@@ -3532,14 +3558,39 @@ window.updateLabelInfo = function(count) {
 };
 
 // Map ပေါ်က contour label စာသား layer ကို ပြန်တည်ဆောက်သည် (Line / Surface / Setting ပြောင်းတိုင်း)
+// Label အစုထဲက အနီးဆုံးအကွာ minGap အတွင်း ထပ်နေသည်များကို ဖယ် (ဦးစားပေးအစဉ်အတိုင်း စောသည်ကို ထား)
+window.thinLabels = function(labels, minGap) {
+    let g2 = minGap * minGap, out = [];
+    labels.forEach(l => {
+        for (let i = 0; i < out.length; i++) { let dn = out[i].n - l.n, de = out[i].e - l.e; if (dn * dn + de * de < g2) return; }
+        out.push(l);
+    });
+    return out;
+};
+
+// Map ပေါ်က contour label စာသား layer ကို ပြန်တည်ဆောက်သည် (Line / Surface / Setting / Zoom ပြောင်းတိုင်း)
+// DXF အတွက်သည် မီတာအလိုက်၊ Map အတွက်သည် မျက်နှာပြင် pixel အလိုက် ထပ်တာဖယ် (zoom ဆွဲထွက်လျှင် ကျဲ၊ ဆွဲဝင်လျှင် ပိုပေါ်)
 window.refreshContourLabels = function() {
     if (window.topoLayerGroup && window.topoContourTextLayer) window.topoLayerGroup.removeLayer(window.topoContourTextLayer);
     window.topoContourTextLayer = null;
 
     let txtH = parseFloat((document.getElementById('topo_text_height') || {}).value) || 0.5;
-    let labels = window.computeContourLabels(txtH * 3);
-    window.updateLabelInfo(labels.length);
-    if (!window.leafletMap || !window.topoLayerGroup || labels.length === 0 || typeof L.CanvasTextLayer === 'undefined') return;
+    let all = window.computeContourLabels(txtH * 3);
+    window.updateLabelInfo(all.length);
+    let map = window.leafletMap;
+    if (!map || !window.topoLayerGroup || all.length === 0 || typeof L.CanvasTextLayer === 'undefined') return;
+    if (!window.layerOn('tgl_contour_labels')) return;           // 🏷️ Contour labels chip ပိတ်ထားလျှင် မပြ
+
+    let labels = all;
+    if (typeof map.getZoom === 'function') {
+        let z = map.getZoom(), lat = (typeof map.getCenter === 'function' && map.getCenter()) ? map.getCenter().lat : 0;
+        let mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z);      // မီတာ / pixel
+        labels = window.thinLabels(all, Math.max(txtH * 3, 64 * mpp));
+        if (!window._lblZoomBound && typeof map.on === 'function') {
+            window._lblZoomBound = true;
+            map.on('zoomend', function() { clearTimeout(window._lblZoomTimer); window._lblZoomTimer = setTimeout(function() { window.refreshContourLabels(); }, 150); });
+        }
+    }
 
     let mColor = (document.getElementById('topo_major_color') || {}).value || '#f59e0b';
     let minColor = (document.getElementById('topo_minor_color') || {}).value || '#b45309';
@@ -3574,7 +3625,9 @@ window.renderLabelLines = function() {
     let drawing = !!window.isLabelDrawing;
     let pane = window.getLabelPane();
 
-    window.topoLabelLines.forEach((ln, i) => {
+    // ✂️ Label lines chip ပိတ်ထားလျှင် (Draw/Edit မလုပ်နေချိန်) ကြိုးစက်မျဉ်းများကို မပြ - Label စာများသာ ပြ
+    let showLines = drawing || window.layerOn('tgl_label_lines');
+    (showLines ? window.topoLabelLines : []).forEach((ln, i) => {
         let latlngs = ln.pts.map(p => [p.lat, p.lon]);
         // မြင်ရသော မျဉ်း
         layers.push(L.polyline(latlngs, { pane: pane, color: '#e11d48', weight: 3, dashArray: '6,4', opacity: 0.95, interactive: false }));
@@ -3690,6 +3743,7 @@ window.stopLabelLineDraw = function(silent) {
     window.labelDraft = [];
     window.labelEditIndex = null;
     if (window.leafletMap) window.leafletMap.off('click', window.labelMapClickListener);
+    if (!silent && window.topoLabelLines.length > 0 && !window.layerOn('tgl_label_lines')) window.mapToast("Label lines are hidden now - turn on ✂️ Label lines in Layers to see or edit them");
     window.renderLabelLines();
     window.refreshContourLabels();
 };
@@ -3853,4 +3907,5 @@ let _oldSwitchAppReset = window.switchApp;
 window.switchApp = function(n) {
     window.resetAllDrawModes();
     if (typeof _oldSwitchAppReset === 'function') _oldSwitchAppReset(n);
+    if (typeof window.syncDrawBar === 'function') window.syncDrawBar();     // Tab ပြောင်းပြီးတာနဲ့ toolbar ကို အခြေအနေအသစ်အတိုင်း ပြန်စစ်
 };

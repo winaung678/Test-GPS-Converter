@@ -399,11 +399,14 @@ window.mapToast = function(msg) {
     window._mapToastTimer = setTimeout(function() { t.style.opacity = '0'; }, 2600);
 };
 
+// Element က အမှန်တကယ် မျက်နှာပြင်ပေါ်မြင်နေသလား (ကိုယ်တိုင် hidden class မပါလည်း အပေါ်က tab container ပိတ်ထားလျှင် မမြင်)
+// offsetParent === null = ကိုယ်တိုင် သို့မဟုတ် parent တစ်ခုခု display:none
+window.isElVisible = function(el) {
+    return !!el && !el.classList.contains('hidden') && el.offsetParent !== null;
+};
+
 window.isToolPanelVisible = function(toolId) {
-    let tool = document.getElementById(toolId);
-    if (!tool || tool.classList.contains('hidden')) return false;
-    let map = document.getElementById('shared_map_view');
-    return !!map && !map.classList.contains('hidden');
+    return window.isElVisible(document.getElementById(toolId)) && window.isElVisible(document.getElementById('shared_map_view'));
 };
 
 // ==========================================
@@ -1749,7 +1752,7 @@ window.profRefreshControls = function() {
     let banner = document.getElementById('prof_edit_banner');
     if (banner) {
         banner.style.display = activeAl ? 'block' : 'none';
-        if (activeAl) banner.innerText = `✏️ Editing ${activeAl.name} — press Update to keep changes`;
+        if (activeAl) banner.innerHTML = `✏️ Editing ${window.escHtml(activeAl.name)} — press Update to keep changes <button type="button" class="acc-tool-btn" style="margin-left:6px;" onclick="window.profRevertEdit()">↺ Revert</button>`;
     }
 
     let info = document.getElementById('prof_cl_info');
@@ -1849,10 +1852,72 @@ window.profStopDrawing = function() {
 };
 
 // ---------- 6) Draft popup ----------
+// Draft point ၏ ရည်ညွှန်းမည့် ရှေ့ point (Distance / Bearing တွက်ရန်)
+window.profDraftRef = function(d) {
+    let pts = window.profCenterlinePts;
+    if (d.mode === 'append') return pts.length > 0 ? pts[pts.length - 1] : null;
+    return d.index > 0 ? (pts[d.index - 1] || null) : null;      // insert / move
+};
+
+window.profBearingDeg = function(a, b) {
+    let br = Math.atan2(b.e - a.e, b.n - a.n) * 180 / Math.PI;
+    return br < 0 ? br + 360 : br;
+};
+
+// Distance (m) + Bearing (°, N ကနေ နာရီလက်တံအတိုင်း) ကို ရိုက်ထည့်၍ draft point ကို တိတိကျကျ ပြန်ချ
+// quiet = true: UI မဆွဲ (Add နှိပ်ချိန်မှာ ခေါ်ရန်)၊ အောင်မြင်လျှင် true ပြန်
+window.profApplyDraftPolar = function(quiet) {
+    let d = window.profDraftPoint;
+    if (!d) return false;
+    let dIn = document.getElementById('prof_draft_dist_inp'), bIn = document.getElementById('prof_draft_brg_inp');
+    if (!dIn || !bIn) return true;                                 // ရည်ညွှန်း point မရှိ (ပထမ point) - ပုံမှန်အတိုင်း
+    if (dIn.value === d._distTxt && bIn.value === d._brgTxt) return true;   // မပြင်ထား - နှိပ်ထားသည့် နေရာအတိုင်း ထား
+    let ref = window.profDraftRef(d);
+    if (!ref) return true;
+    let dist = parseFloat(dIn.value), brg = parseFloat(bIn.value);
+    if (isNaN(dist) || dist <= 0 || isNaN(brg)) { window.mapToast("Enter a distance > 0 and a bearing in degrees"); return false; }
+    let rad = brg * Math.PI / 180;
+    let nn = ref.n + dist * Math.cos(rad), ne = ref.e + dist * Math.sin(rad);
+    let z = typeof getZFromTIN === 'function' ? getZFromTIN(nn, ne, window.topoTriangles) : null;
+    if (z === null) { window.mapToast("⚠️ That point is outside the Topo Surface - shorten the distance"); return false; }
+    // ပြင်ထားသော Radius/Direction ကို မဆုံးရှုံးအောင် မှတ်ထား
+    let rIn = document.getElementById('prof_draft_radius_inp'), drIn = document.getElementById('prof_draft_dir_inp');
+    if (rIn) d.radius = parseFloat(rIn.value) || 0;
+    if (drIn) d.curveDir = drIn.value;
+    let ll = window.getDatumCoordsForLocal(nn, ne);
+    d.n = nn; d.e = ne; d.groundZ = z; d.lat = ll.lat; d.lon = ll.lon;
+    if (!quiet) window.profUpdateBoundaryUI();
+    return true;
+};
+
+// ရှေ့ segment ရဲ့ direction အတိုင်း ဆက်ဆွဲ (Bearing ကို ရှေ့ segment နှင့် တူအောင်ထား)
+window.profDraftSameDir = function() {
+    let d = window.profDraftPoint;
+    if (!d) return;
+    let pts = window.profCenterlinePts;
+    let refIdx = (d.mode === 'append') ? pts.length - 1 : d.index - 1;
+    if (refIdx < 1) return window.mapToast("Need a previous segment to copy its direction");
+    let bIn = document.getElementById('prof_draft_brg_inp');
+    if (!bIn) return;
+    bIn.value = window.profBearingDeg(pts[refIdx - 1], pts[refIdx]).toFixed(4);
+    window.profApplyDraftPolar(false);
+};
+
 window.profBuildDraftPopup = function(dPt) {
     let pre = (dPt.mode === 'move') ? window.profCenterlinePts[dPt.index] : null;
-    let radVal = (pre && pre.radius > 0) ? pre.radius : 0;
-    let dirVal = (pre && pre.curveDir === 'Left') ? 'Left' : 'Right';
+    let radVal = (dPt.radius !== undefined) ? dPt.radius : ((pre && pre.radius > 0) ? pre.radius : 0);
+    let dirVal = (dPt.curveDir !== undefined) ? (dPt.curveDir === 'Left' ? 'Left' : 'Right') : ((pre && pre.curveDir === 'Left') ? 'Left' : 'Right');
+    let ref = window.profDraftRef(dPt), polarHtml = '';
+    if (ref) {
+        dPt._distTxt = Math.hypot(dPt.n - ref.n, dPt.e - ref.e).toFixed(3);
+        dPt._brgTxt = window.profBearingDeg(ref, dPt).toFixed(4);
+        let keys = "event.stopPropagation(); if(event.key==='Enter'){ window.profApplyDraftPolar(); }";
+        polarHtml = `<div class="dp-box">
+                <div class="dp-row"><span class="dp-lbl">Dist:</span><input type="number" id="prof_draft_dist_inp" class="dp-in" value="${dPt._distTxt}" min="0" step="0.001" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" onkeydown="${keys}" onchange="window.profApplyDraftPolar()"><span class="dp-lbl">m</span></div>
+                <div class="dp-row"><span class="dp-lbl">Brg:</span><input type="number" id="prof_draft_brg_inp" class="dp-in" value="${dPt._brgTxt}" step="0.0001" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" onkeydown="${keys}" onchange="window.profApplyDraftPolar()"><span class="dp-lbl">°</span>
+                    <button type="button" class="dp-mini" title="Same direction as the previous segment" onclick="event.stopPropagation(); window.profDraftSameDir();">⤴ prev</button></div>
+            </div>`;
+    }
     let btnText = dPt.mode === 'move' ? '✔ Move here' : (dPt.mode === 'insert' ? '↳ Insert here' : '➕ Add');
     let title = dPt.mode === 'move' ? '↔ New Position' : (dPt.mode === 'insert' ? '↳ Insert Node' : '📍 Centerline Node');
 
@@ -1862,6 +1927,7 @@ window.profBuildDraftPopup = function(dPt) {
                 N: ${dPt.n.toFixed(2)} | E: ${dPt.e.toFixed(2)}<br>Z: ${dPt.groundZ.toFixed(2)}
             </div>
 
+            ${polarHtml}
             <div style="margin-top:4px; margin-bottom:4px; border-top:1px dashed #cbd5e1; padding-top:4px; padding-bottom:2px;">
                 <div style="display:flex; align-items:center; justify-content:center; gap:2px;">
                     <span style="font-size:10px; color:#64748b; font-weight:bold;">Rad:</span>
@@ -1879,8 +1945,9 @@ window.profBuildDraftPopup = function(dPt) {
 
 // ---------- 7) Confirm / Delete / Move ----------
 window.confirmProfDraftPoint = function() {
+    if (!window.profDraftPoint) return;
+    if (!window.profApplyDraftPolar(true)) return;      // ရိုက်ထည့်ထားသော Distance/Bearing ရှိလျှင် အရင်အသုံးချ (မအောင်မြင်လျှင် မထည့်)
     let d = window.profDraftPoint;
-    if (!d) return;
 
     let radInput = document.getElementById('prof_draft_radius_inp');
     let dirInput = document.getElementById('prof_draft_dir_inp');
@@ -2054,9 +2121,30 @@ window.undoProfCenterline = function() {
         window.profAutoDatum();
         window.profInvalidateResults();
         window.profUpdateBoundaryUI();
+    } else if (window.profCenterlinePts.length > 2) {   // ၄) History မကျန်တော့ (သိမ်းထားသော line ကို Edit စတွင်) - နောက်ဆုံး point ကို နောက်ပြန်ဖယ်
+        window.profCenterlinePts.pop();
+        window.profAutoDatum();
+        window.profInvalidateResults();
+        window.profUpdateBoundaryUI();
     } else {
-        alert("No points to undo.");
+        window.mapToast("A centerline needs at least 2 points. Use 🗑️ Clear to remove it.");
     }
+};
+
+// Edit လုပ်နေသော alignment ကို သိမ်းထားသော version အတိုင်း ပြန်ယူ
+window.profRevertEdit = function() {
+    let al = window.profActiveId ? window.profAlignments.find(a => a.id === window.profActiveId) : null;
+    if (!al) return;
+    window.profCenterlinePts = JSON.parse(JSON.stringify(al.pts));
+    window.profApplySettings(al.settings);
+    window.profHistory = [];
+    window.profDraftPoint = null;
+    window.profMoveIndex = null;
+    window.profSectionData = null;
+    if (window.leafletMap) window.leafletMap.closePopup();
+    window.profInvalidateResults();
+    window.profUpdateBoundaryUI();
+    window.mapToast("Reverted to the saved " + al.name);
 };
 
 window.clearProfCenterline = function(skipConfirm) {
@@ -2251,7 +2339,7 @@ window.profRenderAlignList = function() {
     div.innerHTML = window.profAlignments.map(al => {
         let isActive = (al.id === window.profActiveId);
         let len = (al.sectionData && al.sectionData.totalLength) ? al.sectionData.totalLength.toFixed(1) + ' m' : '-';
-        let nSt = (al.sectionData && al.sectionData.stations) ? al.sectionData.stations.length : 0;
+        let nSt = (al.sectionData && al.sectionData.stations) ? al.sectionData.stations.filter(s => s.csPoints && s.csPoints.length > 1).length : 0;
         let bs = 'border:none; border-radius:4px; color:#fff; font-size:12px; padding:5px 7px; font-weight:bold;';
         return `<div style="display:flex; align-items:center; gap:5px; padding:6px; margin-top:4px; border-radius:6px; background:${isActive ? 'rgba(245,158,11,0.18)' : 'rgba(148,163,184,0.12)'}; border:1px solid ${isActive ? '#f59e0b' : 'var(--input-border)'};">
             <span style="width:12px; height:12px; border-radius:50%; background:${al.color}; flex:none;"></span>
@@ -2272,6 +2360,7 @@ window.profRenderSavedAlignments = function() {
     if (window.leafletMap && window.profSavedLayer) { window.leafletMap.removeLayer(window.profSavedLayer); window.profSavedLayer = null; }
     window.profRenderAlignList();
     if (!window.leafletMap) return;
+    if (!window.layerOn('tgl_pf_lines')) return;      // 📐 PF lines ကို ပိတ်ထားလျှင် မပြ
     let drawing = !!window.isProfDrawing;
     let layers = [];
     window.profAlignments.forEach(al => {
@@ -2354,7 +2443,7 @@ window.profCalcAll = function() {
     let html = '<div class="pf-sum-title">✅ Calculated ' + ok + '/' + rows.length + ' alignment' + (rows.length > 1 ? 's' : '') + '</div>' +
         '<table class="pf-sum-table"><tr><th>Alignment</th><th>Length</th><th>CS</th><th>Min Z</th></tr>' +
         rows.map(r => r.sd
-            ? '<tr><td>' + window.escHtml(r.name) + '</td><td>' + r.sd.totalLength.toFixed(1) + ' m</td><td>' + r.sd.stations.length + '</td><td>' + r.sd.minZ.toFixed(2) + '</td></tr>'
+            ? '<tr><td>' + window.escHtml(r.name) + '</td><td>' + r.sd.totalLength.toFixed(1) + ' m</td><td>' + r.sd.stations.filter(s => s.csPoints && s.csPoints.length > 1).length + '</td><td>' + r.sd.minZ.toFixed(2) + '</td></tr>'
             : '<tr><td>' + window.escHtml(r.name) + '</td><td colspan="3">⚠️ failed</td></tr>').join('') + '</table>';
     let box = document.getElementById('prof_status_box'), sum = document.getElementById('prof_summary');
     if (box && sum) { box.classList.remove('hidden'); sum.innerHTML = html; }
@@ -2391,11 +2480,12 @@ window.registerDrawBar({ name: 'prof', tool: 'prof', persistent: true, fn: funct
     let al = window.profActiveId ? window.profAlignments.find(a => a.id === window.profActiveId) : null;
     let pre = al ? (al.name + " · ") : "";
     let hint;
-    if (drawing) hint = n < 2 ? (pre + "Tap map → ➕ Add (" + n + " pts, need 2+)") : (pre + n + " pts · tap a point: Move/Delete · tap the line: Insert");
+    if (drawing) hint = n < 2 ? (pre + "Tap map → set Dist/Bearing → ➕ Add (" + n + " pts, need 2+)") : (pre + n + " pts · tap map: next point (Dist/Bearing) · tap a point: Move/Delete · tap the line: Insert");
     else hint = n >= 2 ? (al ? ("Editing " + al.name + " · press 💾 Update") : (n + " pts · press 💾 Save")) : "Tap ✏️ Draw, then tap the map";
     return { hint: hint, buttons: [
         { text: drawing ? "✏️ Draw ●" : (n > 0 ? "✏️ Edit" : "✏️ Draw"), tone: "amber", active: drawing, fn: () => window.toggleProfDrawMode() },
         { text: "↩ Undo", tone: "violet", fn: () => window.drawBarUndo() },
+        { text: "↺ Revert", tone: "teal", hidden: !al, fn: () => window.profRevertEdit() },
         { text: "🗑️ Clear", tone: "slate", fn: () => window.openDrawBarMenu('prof') },
         { text: al ? "💾 Update" : "💾 Save", tone: "purple", hidden: drawing || n < 2, fn: () => window.profSaveAlignment() },
         { text: "✔ Done", tone: "red", hidden: !drawing, fn: () => window.profStopDrawing() }

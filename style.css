@@ -273,3 +273,11 @@ select:disabled{opacity:0.6;background:#e2e8f0;cursor:not-allowed;}
 .switch-row input:checked + .switch-ui{background:#0284c7;}
 .switch-row input:checked + .switch-ui::after{left:16px;}
 .offset-box:has(#prof_draw_offsets:not(:checked)) .offset-fields{display:none;}
+
+
+/* ---- PF draft popup: Distance / Bearing ---- */
+.dp-box{margin:4px 0;padding-top:4px;border-top:1px dashed #cbd5e1;}
+.dp-row{display:flex;align-items:center;justify-content:center;gap:3px;margin-top:3px;}
+.dp-lbl{font-size:10px;font-weight:bold;color:#64748b;}
+.dp-in{width:78px;height:22px;padding:1px 3px;font-size:11px;font-weight:bold;text-align:center;border:1px solid #94a3b8;border-radius:3px;}
+.dp-mini{height:22px;padding:0 5px;font-size:10px;font-weight:bold;border:none;border-radius:3px;background:#0284c7;color:#fff;cursor:pointer;}
