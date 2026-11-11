@@ -780,6 +780,10 @@ window.initMap = function() {
         else { popupContent += `<b style="font-size:11px; color:#ef4444; background:#fee2e2; padding:3px; border-radius:4px; display:block; margin-bottom:5px;">⚠️ Out of Local Bounds</b>`; }
 
         popupContent += `<b style="font-size:12px; color:#1e3a8a;">Lat: ${finalLat.toFixed(7)}<br>Lon: ${finalLon.toFixed(7)}</b>`;
+        {   // Geoid N (EGM2008) - map ကို နှိပ်သည့်နေရာအတွက်၊ GPS panel ၏ တန်ဖိုးကို မထိ
+            let g = (typeof window.getGeoidN === 'function') ? window.getGeoidN(finalLat, finalLon) : null;
+            popupContent += `<div style="margin-top:4px; font-size:12px; font-weight:bold; color:#047857;">${g ? `Geoid N: ${g.n >= 0 ? '+' : ''}${g.n.toFixed(3)} m <span style="font-size:10px; color:#64748b;">(${g.model})</span>` : 'Geoid N: n/a'}</div>`;
+        }
 
         if (window.activeApp === 3 && typeof window.setOutFromMapClick === 'function') {
             popupContent += `<div style="margin-top:5px; display:flex; justify-content:center;">`;

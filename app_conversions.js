@@ -4,20 +4,37 @@
 
 window.v2_sync = function(p, t) { let v = document.getElementById('v2_'+p+'_dd'); if(t === 'dd') { let n = parseFloat(v.value); if(isNaN(n)) return; let a = Math.abs(n), d = Math.floor(a), m = Math.floor((a-d)*60), s = ((a-d-m/60)*3600).toFixed(4); document.getElementById('v2_'+p+'_d').value = n < 0 ? -d : d; document.getElementById('v2_'+p+'_m').value = m; document.getElementById('v2_'+p+'_s').value = s; } else { let d = parseFloat(document.getElementById('v2_'+p+'_d').value) || 0; let m = parseFloat(document.getElementById('v2_'+p+'_m').value) || 0; let s = parseFloat(document.getElementById('v2_'+p+'_s').value) || 0; let sn = (d < 0 || document.getElementById('v2_'+p+'_d').value.includes('-')) ? -1 : 1; v.value = (sn * (Math.abs(d) + Math.abs(m)/60 + Math.abs(s)/3600)).toFixed(9); } };
 
-window.v2_toggleUI = function() { let m = document.getElementById('v2_mode').value; document.getElementById('v2_ll_div').className = (m === 'LL2SVY') ? '' : 'hidden'; document.getElementById('v2_ne_div').className = (m === 'SVY2LL') ? '' : 'hidden'; };
+window.v2_toggleUI = function() {
+    let m = document.getElementById('v2_mode').value;
+    let isNE = (m !== 'LL2SVY');                                  // LL2SVY မှလွဲ၍ N,E ထည့်သည့် mode များ
+    document.getElementById('v2_ll_div').className = isNE ? 'hidden' : '';
+    document.getElementById('v2_ne_div').className = isNE ? '' : 'hidden';
+    let zd = document.getElementById('v2_zone_div'); if (zd) zd.className = (m === 'UTM2SVY') ? '' : 'hidden';   // UTM input လျှင်သာ zone လို
+    let el = document.getElementById('v2_e_lbl'), nl = document.getElementById('v2_n_lbl');
+    let src = (m === 'UTM2SVY') ? 'WGS84 UTM ' : 'SVY21 ';
+    if (el) el.innerText = src + 'Easting (E):'; if (nl) nl.innerText = src + 'Northing (N):';
+};
 
 window.v2_run = function() {
     let m = document.getElementById('v2_mode').value, wLa, wLo, sE, sN;
     if(m === 'LL2SVY') { wLa = parseFloat(document.getElementById('v2_lat_dd').value); wLo = parseFloat(document.getElementById('v2_lon_dd').value); if(isNaN(wLa) || isNaN(wLo)) return; let r = calc_v2_fwd(wLa, wLo); sN = r.N; sE = r.E; }
-    else { sE = parseFloat(document.getElementById('v2_inp_e').value); sN = parseFloat(document.getElementById('v2_inp_n').value); if(isNaN(sE) || isNaN(sN)) return; let r = calc_v2_rev(sE, sN); wLa = r.lat; wLo = r.lon; }
+    else if(m === 'UTM2SVY') {
+        // WGS84 UTM (N,E) → Lat/Lon (zone အတိုင်း inverse) → SVY21 (N,E)
+        let uE = parseFloat(document.getElementById('v2_inp_e').value), uN = parseFloat(document.getElementById('v2_inp_n').value), z = parseInt(document.getElementById('v2_zone').value, 10);
+        if(isNaN(uE) || isNaN(uN) || isNaN(z) || z < 1 || z > 60) return;
+        let ll = m_inverse(uE, uN, z, m_WGS); wLa = ll.lat; wLo = ll.lon;
+        if (isNaN(wLa) || isNaN(wLo)) return;
+        let r = calc_v2_fwd(wLa, wLo); sN = r.N; sE = r.E; window.v2_utm_zone_in = z;
+    }
+    else { sE = parseFloat(document.getElementById('v2_inp_e').value); sN = parseFloat(document.getElementById('v2_inp_n').value); if(isNaN(sE) || isNaN(sN)) return; let r = calc_v2_rev(sE, sN); wLa = r.lat; wLo = r.lon; }   // SVY2LL / SVY2UTM (SVY21 N,E ထည့် - ရလဒ်မှာ WGS84 LL နှင့် UTM နှစ်မျိုးလုံးပြ)
     window.v2_map_lat = wLa; window.v2_map_lon = wLo;
     if (window.isNativeGPSActive && !(wLa >= 1.0 && wLa <= 2.0 && wLo >= 103.0 && wLo <= 104.5)) return document.getElementById('v2_out').innerHTML = `<div style="background:#fef2f2;border:2px solid #ef4444;color:#991b1b;padding:15px;border-radius:10px;text-align:center;margin-top:10px;"><b>⚠️ Out of Bounds</b></div>`;
-    let utmZone = Math.floor((wLo + 180) / 6) + 1; let pW = m_project(wLa, wLo, utmZone, m_WGS); let wN = pW.n; let wE = pW.e;
+    let utmZone = (m === 'UTM2SVY' && window.v2_utm_zone_in) ? window.v2_utm_zone_in : Math.floor((wLo + 180) / 6) + 1; let pW = m_project(wLa, wLo, utmZone, m_WGS); let wN = pW.n; let wE = pW.e;
     window.latest_local_N = sN; window.latest_local_E = sE; window.latest_wgs_N = wN; window.latest_wgs_E = wE; window.latest_lat = wLa; window.latest_lon = wLo;
     if(!window.isNativeGPSActive) { window.latest_Z = 0; fetchGeoidDataFromNative(wLa, wLo); }
     let geoidLabel = window.currentGeoidN ? `Geoid (N): ${window.currentGeoidN.toFixed(3)} m (${window.currentGeoidModel})` : `Geoid (N): N/A`;
     let out = `<div style="margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:5px;"><b>SVY21 Datum</b><br>N: <span style="color:red">${sN.toFixed(3)} m</span>, E: <span style="color:red">${sE.toFixed(3)} m</span><br>Lat: ${wLa.toFixed(8)}° (DD)<br>Lon: ${wLo.toFixed(8)}° (DD)<br><span class="dms-span">${m_toDMS(wLa,1)} | ${m_toDMS(wLo,0)}</span><div class="badge-container"><span class="badge-local">🇸🇬 SVY21 Projection</span></div></div>`;
-    out += `<div style="margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:5px;"><b>WGS84 UTM</b><br>N: <span style="color:red">${wN.toFixed(3)} m</span>, E: <span style="color:red">${wE.toFixed(3)} m</span><br>Lat: ${wLa.toFixed(8)}° (DD)<br>Lon: ${wLo.toFixed(8)}° (DD)<br><span class="dms-span">${m_toDMS(wLa,1)} | ${m_toDMS(wLo,0)}</span><div class="badge-container"><span class="badge-global">🌍 UTM: ${getUTMZoneString(wLa,wLo)}</span></div></div>`;
+    out += `<div style="margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:5px;"><b>WGS84 UTM</b><br>N: <span style="color:red">${wN.toFixed(3)} m</span>, E: <span style="color:red">${wE.toFixed(3)} m</span><br>Lat: ${wLa.toFixed(8)}° (DD)<br>Lon: ${wLo.toFixed(8)}° (DD)<br><span class="dms-span">${m_toDMS(wLa,1)} | ${m_toDMS(wLo,0)}</span><div class="badge-container"><span class="badge-global">🌍 UTM: ${getUTMZoneString(wLa,wLo)}${m === 'UTM2SVY' ? ' · Zone ' + utmZone + ' (input)' : ''}</span></div></div>`;
     out += `<div class="meta-info-box" style="color:#1e40af;">${geoidLabel}</div>${window.isNativeGPSActive?`<div class="meta-info-box">${window.globalZText}</div>`:""}`;
     if (!window.isNativeGPSActive) out += getManualSaveBoxUI('SVY21', 'v2');
     document.getElementById('v2_out').innerHTML = out;
@@ -127,7 +144,7 @@ function getManualSaveBoxUI(datumLabel, prefix) { return `<div style="margin-top
 
 function m_fmt(t, la, lo, e, n, gLabel) { return `<div style="margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:5px;"><b>${t}</b><br>N: <span style="color:red">${n.toFixed(3)} m</span>, E: <span style="color:red">${e.toFixed(3)} m</span><br>Lat: ${la.toFixed(8)}° (DD)<br>Lon: ${lo.toFixed(8)}° (DD)<br><span class="dms-span">${m_toDMS(la,1)} | ${m_toDMS(lo,0)}</span><div class="badge-container"><span class="badge-local">${t==="MM2000"?"🇲🇲 MM2000 Datum":"🌐 WGS84 System"}</span><span class="badge-global">🌍 UTM: ${getUTMZoneString(la,lo)}</span></div><div class="meta-info-box" style="color:#1e40af;">${gLabel}</div>${window.isNativeGPSActive?`<div class="meta-info-box">${window.globalZText}</div>`:""}</div>`; }
 
-window.v2_reset = function() { if(!window.isNativeGPSActive) { document.querySelectorAll('#app1_view input').forEach(i => i.value=''); window.latest_local_N=0; window.latest_local_E=0; window.latest_wgs_N=0; window.latest_wgs_E=0; window.latest_Z=0; } document.getElementById('v2_out').innerHTML='<p style="text-align:center;opacity:0.5;margin-top:30px;">Results will appear here</p>'; window.v2_map_lat = window.v2_map_lon = null; };
+window.v2_reset = function() { if(!window.isNativeGPSActive) { document.querySelectorAll('#app1_view input').forEach(i => i.value=''); { let z = document.getElementById('v2_zone'); if (z) z.value = '48'; } window.latest_local_N=0; window.latest_local_E=0; window.latest_wgs_N=0; window.latest_wgs_E=0; window.latest_Z=0; } document.getElementById('v2_out').innerHTML='<p style="text-align:center;opacity:0.5;margin-top:30px;">Results will appear here</p>'; window.v2_map_lat = window.v2_map_lon = null; };
 window.m_reset = function() { if(!window.isNativeGPSActive) { document.querySelectorAll('#app2_view input').forEach(i => i.value=''); window.latest_local_N=0; window.latest_local_E=0; window.latest_wgs_N=0; window.latest_wgs_E=0; window.latest_Z=0; } document.getElementById('m_out').innerHTML='<p style="text-align:center;opacity:0.5;margin-top:30px;">Results will appear here</p>'; window.m_map_lat = window.m_map_lon = null; };
 window.g_reset = function() { if(!window.isNativeGPSActive) { document.querySelectorAll('#app5_view input').forEach(i => i.value=''); window.latest_local_N=0; window.latest_local_E=0; window.latest_wgs_N=0; window.latest_wgs_E=0; window.latest_Z=0; } document.getElementById('g_out').innerHTML='<p style="text-align:center;opacity:0.5;margin-top:30px;">Results will appear here</p>'; window.g_map_lat = window.g_map_lon = null; };
 

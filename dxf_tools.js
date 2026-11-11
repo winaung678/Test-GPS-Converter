@@ -1,0 +1,252 @@
+// ==========================================
+// 📐 DXF TOOLS - DXF export အားလုံး (Topo / 3D TIN / Volume / PF-CS / Eccentricity) မျှသုံး
+//   ၁) ပုံအကျယ်အဝန်း ($EXTMIN/$EXTMAX/$LIMMIN/$LIMMAX) နှင့် စတင်မြင်ရမည့် view (VPORT *ACTIVE) ထည့်
+//      → AutoCAD ဖွင့်တာနဲ့ ပုံတစ်ခုလုံး မြင်ရ (Zoom Extents ပြန်မလုပ်ရ)
+//   ၂) Scale bar (1:xxx) ကို SCALE_BAR layer ထဲ၊ စာရွက်အရွယ် (A3/A4) ဘောင်ကို PLOT_FRAME layer ထဲ ထည့်
+//      → AutoCAD Plot ၌ Window ဖြင့် ဘောင်ကို ရွေးပြီး ရွေးထားသည့် scale ထည့်လျှင် စာရွက်အပြည့် တိတိကျကျ ထွက်
+//   Export function များသည် နောက်ဆုံး DXF string ကို window.dxfPostProcess() ကို ဖြတ်ပေးရုံသာ လိုသည်။
+// ==========================================
+
+window.DXF_STD_SCALES = [20, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000, 100000];
+window.DXF_OPTS_KEY = 'svy_dxf_opts_v1';
+window.DXF_PAPER = { A3: [420, 297], A4: [297, 210] };      // mm (ဘေးလှဲ)
+window.dxfOpts = { scale: 'auto', paper: 'A3', frame: true, bar: true };
+
+// ---------- Options (Export ခလုတ်များနားက "Plot scale / Paper / Frame / Scale bar" အကွက်များ) ----------
+window.dxfOptsLoad = function() {
+    try {
+        let o = JSON.parse(localStorage.getItem(window.DXF_OPTS_KEY) || 'null');
+        if (o && typeof o === 'object') {
+            if (o.scale === 'auto' || window.DXF_STD_SCALES.indexOf(Number(o.scale)) >= 0) window.dxfOpts.scale = o.scale;
+            if (typeof o.bar === 'boolean') window.dxfOpts.bar = o.bar;
+            if (typeof o.frame === 'boolean') window.dxfOpts.frame = o.frame;
+            if (o.paper === 'A3' || o.paper === 'A4') window.dxfOpts.paper = o.paper;
+        }
+    } catch (e) {}
+};
+
+window.dxfOptsApplyToUI = function() {
+    let o = window.dxfOpts;
+    Array.prototype.slice.call(document.querySelectorAll('.dxf-opt-scale')).forEach(function(el) { el.value = String(o.scale); });
+    Array.prototype.slice.call(document.querySelectorAll('.dxf-opt-bar')).forEach(function(el) { el.checked = !!o.bar; });
+    Array.prototype.slice.call(document.querySelectorAll('.dxf-opt-frame')).forEach(function(el) { el.checked = !!o.frame; });
+    Array.prototype.slice.call(document.querySelectorAll('.dxf-opt-paper')).forEach(function(el) { el.value = String(o.paper); });
+};
+
+// အကွက်တစ်ခုပြောင်းလျှင် state ပြောင်း၊ မှတ်ထား၊ တခြား tab ရှိ ထပ်တူအကွက်များကိုလည်း ညှိ
+window.dxfOptsOnChange = function(ev) {
+    let t = ev && ev.target;
+    if (!t || !t.classList) return;
+    if (t.classList.contains('dxf-opt-scale')) window.dxfOpts.scale = (t.value === 'auto') ? 'auto' : Number(t.value);
+    else if (t.classList.contains('dxf-opt-bar')) window.dxfOpts.bar = !!t.checked;
+    else if (t.classList.contains('dxf-opt-frame')) window.dxfOpts.frame = !!t.checked;
+    else if (t.classList.contains('dxf-opt-paper')) window.dxfOpts.paper = (t.value === 'A4') ? 'A4' : 'A3';
+    else return;
+    try { localStorage.setItem(window.DXF_OPTS_KEY, JSON.stringify(window.dxfOpts)); } catch (e) {}
+    window.dxfOptsApplyToUI();
+};
+
+window.dxfOptsInit = function() {
+    window.dxfOptsLoad();
+    window.dxfOptsApplyToUI();
+    document.addEventListener('change', window.dxfOptsOnChange);
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', window.dxfOptsInit);
+else window.dxfOptsInit();
+
+// ---------- Helpers ----------
+// target ထက်မကျော်သော 1/2/5 × 10ⁿ အကြီးဆုံးကိန်း
+window.dxfNiceLen = function(target) {
+    if (!(target > 0)) return 1;
+    let p = Math.pow(10, Math.floor(Math.log10(target))), best = p;
+    [1, 2, 5, 10].forEach(function(m) { if (m * p <= target * 1.0001) best = m * p; });
+    return best;
+};
+
+window.dxfFmt = function(v) {
+    let r = Math.round(v * 1000) / 1000;
+    return String(r);
+};
+
+window.dxfNum = function(v) { return (Math.abs(v) < 1e-9 ? 0 : v).toFixed(3); };
+
+// Entity builders (R12 format, လိုင်းအဆုံးမှာ newline မပါ)
+window.dxfLineE = function(layer, x1, y1, x2, y2) {
+    let n = window.dxfNum;
+    return "0\nLINE\n8\n" + layer + "\n10\n" + n(x1) + "\n20\n" + n(y1) + "\n30\n0.0\n11\n" + n(x2) + "\n21\n" + n(y2) + "\n31\n0.0";
+};
+window.dxfSolidE = function(layer, p1, p2, p3, p4) {     // zig-zag အစဉ် (SOLID): p1,p2 = တစ်ဖက်၊ p3,p4 = ကျန်တစ်ဖက်
+    let n = window.dxfNum;
+    return "0\nSOLID\n8\n" + layer + "\n62\n7\n10\n" + n(p1[0]) + "\n20\n" + n(p1[1]) + "\n30\n0.0\n11\n" + n(p2[0]) + "\n21\n" + n(p2[1]) + "\n31\n0.0\n12\n" +
+        n(p3[0]) + "\n22\n" + n(p3[1]) + "\n32\n0.0\n13\n" + n(p4[0]) + "\n23\n" + n(p4[1]) + "\n33\n0.0";
+};
+window.dxfTextE = function(layer, x, y, h, txt, rot) {   // အလယ်ချိန် (center / middle)
+    let n = window.dxfNum;
+    return "0\nTEXT\n8\n" + layer + "\n10\n" + n(x) + "\n20\n" + n(y) + "\n30\n0.0\n40\n" + n(h) + "\n1\n" + txt + "\n50\n" + (rot || 0).toFixed(3) +
+        "\n72\n1\n11\n" + n(x) + "\n21\n" + n(y) + "\n31\n0.0\n73\n2";
+};
+
+// ရေပြင်ညီ scale bar: x0,y0 = ဘယ်အောက်ထောင့်၊ len = အစစ်အမှန်မီတာ၊ barH = bar အထူ၊ th = စာအမြင့်
+window.dxfHBar = function(x0, y0, len, barH, th, layer, caption) {
+    let out = [], n = 4, seg = len / n, L = window.dxfLineE, F = window.dxfFmt;
+    out.push(L(layer, x0, y0, x0 + len, y0), L(layer, x0, y0 + barH, x0 + len, y0 + barH));
+    for (let i = 0; i <= n; i++) out.push(L(layer, x0 + i * seg, y0, x0 + i * seg, y0 + barH));
+    for (let i = 0; i < n; i += 2) out.push(window.dxfSolidE(layer, [x0 + i * seg, y0], [x0 + (i + 1) * seg, y0], [x0 + i * seg, y0 + barH], [x0 + (i + 1) * seg, y0 + barH]));
+    out.push(window.dxfTextE(layer, x0, y0 - th * 1.3, th, "0", 0));
+    out.push(window.dxfTextE(layer, x0 + len / 2, y0 - th * 1.3, th, F(len / 2), 0));
+    out.push(window.dxfTextE(layer, x0 + len, y0 - th * 1.3, th, F(len) + " m", 0));
+    if (caption) out.push(window.dxfTextE(layer, x0 + len / 2, y0 + barH + th * 1.2, th, caption, 0));
+    return out;
+};
+
+// ထောင်လိုက် scale bar: height = ပုံထဲက အမြင့် (exaggeration ပါပြီးသား)၊ realLen = အစစ်အမှန်မီတာ
+window.dxfVBar = function(x0, y0, height, realLen, barW, th, layer, caption) {
+    let out = [], n = 4, seg = height / n, L = window.dxfLineE, F = window.dxfFmt;
+    out.push(L(layer, x0, y0, x0, y0 + height), L(layer, x0 + barW, y0, x0 + barW, y0 + height));
+    for (let i = 0; i <= n; i++) out.push(L(layer, x0, y0 + i * seg, x0 + barW, y0 + i * seg));
+    for (let i = 0; i < n; i += 2) out.push(window.dxfSolidE(layer, [x0, y0 + i * seg], [x0 + barW, y0 + i * seg], [x0, y0 + (i + 1) * seg], [x0 + barW, y0 + (i + 1) * seg]));
+    out.push(window.dxfTextE(layer, x0 + barW + th * 2.2, y0, th, "0", 0));
+    out.push(window.dxfTextE(layer, x0 + barW + th * 2.2, y0 + height, th, F(realLen) + " m", 0));
+    if (caption) out.push(window.dxfTextE(layer, x0 + barW / 2, y0 + height + th * 1.6, th, caption, 0));
+    return out;
+};
+
+window.dxfRectE = function(layer, minX, minY, maxX, maxY) {
+    let L = window.dxfLineE;
+    return [L(layer, minX, minY, maxX, minY), L(layer, maxX, minY, maxX, maxY), L(layer, maxX, maxY, minX, maxY), L(layer, minX, maxY, minX, minY)];
+};
+
+// Plan ပုံအတွက် Plot scale ၊ စာရွက်ဘောင် ၊ scale bar နေရာကို တွက်ချက်သည်
+//  bbox = ပုံ (plan) ၏ အကျယ်အဝန်း (မီတာ)
+//  စာရွက်ပေါ်: ဘောင်အတွင်းအနား ၁၀ mm၊ ပုံနှင့် အနား ၅ mm၊ အောက်ဘက် ၂၅ mm ကို scale bar နေရာအဖြစ် ချန်
+//  Auto = အလျားလိုက်/ထောင်လိုက် နှစ်မျိုးထဲက ပိုသေးသော scale နှင့် ဆန့်သည့်ဘက်၊ စံ scale ထဲက အနီးဆုံး
+window.dxfPlanLayout = function(bbox) {
+    let ui = window.dxfOpts, P = window.DXF_PAPER[ui.paper] || window.DXF_PAPER.A3;
+    let W = Math.max(bbox.maxX - bbox.minX, 0.001), H = Math.max(bbox.maxY - bbox.minY, 0.001);
+    let orients = [{ name: 'landscape', pw: P[0], ph: P[1] }, { name: 'portrait', pw: P[1], ph: P[0] }];
+    orients.forEach(function(o) { o.uw = o.pw - 20 - 10; o.uh = o.ph - 20 - 10 - 25; o.need = Math.max(W * 1000 / o.uw, H * 1000 / o.uh); });
+    let best = orients[0].need <= orients[1].need ? orients[0] : orients[1];
+    let scale;
+    if (ui.scale !== 'auto' && Number(ui.scale) > 0) {
+        scale = Number(ui.scale);
+        // ရွေးထားသော scale မှာ ပိုကောင်းစွာဆန့်သည့် အရှည်/အနံ ဘက်ကို ရွေး
+        let fit = function(o) { return Math.min(o.uw / (W * 1000 / scale), o.uh / (H * 1000 / scale)); };
+        best = fit(orients[0]) >= fit(orients[1]) ? orients[0] : orients[1];
+    } else {
+        let need = best.need, list = window.DXF_STD_SCALES;       // (ပုံနှင့်အနား ၅ mm ကို usable ထဲမှာ ထည့်တွက်ပြီးသား)
+        scale = list[list.length - 1];
+        for (let i = 0; i < list.length; i++) { if (list[i] >= need) { scale = list[i]; break; } }
+    }
+    let k = scale / 1000;                                         // စာရွက် ၁ mm = မော်ဒယ် k မီတာ
+    let Fw = best.pw * k, Fh = best.ph * k, reserve = 25 * k;
+    let cx = (bbox.minX + bbox.maxX) / 2, cy = ((bbox.minY - reserve) + bbox.maxY) / 2;
+    let frame = { minX: cx - Fw / 2, minY: cy - Fh / 2, maxX: cx + Fw / 2, maxY: cy + Fh / 2 };
+    let inner = { minX: frame.minX + 10 * k, minY: frame.minY + 10 * k, maxX: frame.maxX - 10 * k, maxY: frame.maxY - 10 * k };
+    return { scale: scale, paper: ui.paper, orient: best.name, frame: frame, inner: inner, bbox: bbox, k: k,
+             barX: inner.minX + 10 * k, barY: inner.minY + 12 * k };
+};
+
+// ---------- Bounding box (entity အလိုက်ဖတ် - POLYLINE ခေါင်းစီးထဲက အတု (0,0) ကို ကျော်) ----------
+window.dxfScanBBox = function(lines, s, e) {
+    const ENT = { LINE: 1, POINT: 1, TEXT: 1, VERTEX: 1, SOLID: 1, '3DFACE': 1, CIRCLE: 1, ARC: 1 };
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let type = null, xs = [0, 0, 0, 0], have = [false, false, false, false], rad = 0, cx = 0, cy = 0;
+    const add = function(x, y) {
+        if (!isFinite(x) || !isFinite(y)) return;
+        if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+    };
+    for (let i = s; i < e && i < lines.length - 1; i += 2) {
+        let code = lines[i].trim(), val = lines[i + 1];
+        if (code === '0') { type = val.trim(); have[0] = have[1] = have[2] = have[3] = false; continue; }
+        if (!ENT[type]) continue;
+        let c = parseInt(code, 10);
+        if (c >= 10 && c <= 13) { xs[c - 10] = parseFloat(val); have[c - 10] = true; }
+        else if (c >= 20 && c <= 23 && have[c - 20]) {
+            let y = parseFloat(val);
+            add(xs[c - 20], y);
+            if ((type === 'CIRCLE' || type === 'ARC') && c === 20) { cx = xs[0]; cy = y; }
+        } else if (c === 40 && (type === 'CIRCLE' || type === 'ARC')) {
+            rad = parseFloat(val);
+            if (isFinite(rad)) { add(cx - rad, cy - rad); add(cx + rad, cy + rad); }
+        }
+    }
+    if (!isFinite(minX)) return null;
+    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+};
+
+// နောက်ဆုံး DXF string ကို ဖြတ်ပြီး Extents / View / Plot frame / Scale bar ထည့်ပေးသည်
+// o.layout = PF/CS export က plan အပိုင်းအတွက် ကြိုတွက်ထားသော dxfPlanLayout() ရလဒ်
+// Error ဖြစ်လျှင် မူလ DXF ကို ပြန်ပေး (export မပျက်စေရန်)
+window.dxfPostProcess = function(dxf, o) {
+    try { return window._dxfPostProcess(String(dxf), o || {}); }
+    catch (e) { console.error('dxfPostProcess', e); return dxf; }
+};
+
+window._dxfPostProcess = function(dxf, o) {
+    let lines = dxf.split('\n');
+    let es = -1;
+    for (let i = 1; i < lines.length; i++) { if (lines[i].trim() === 'ENTITIES' && lines[i - 1].trim() === '2') { es = i + 1; break; } }
+    let ee = -1;
+    for (let i = lines.length - 1; i >= 1; i--) { if (lines[i].trim() === 'ENDSEC') { ee = i - 1; break; } }
+    if (es < 0 || ee < es) return dxf;
+    let bb = window.dxfScanBBox(lines, es, ee);
+    if (!bb) return dxf;
+
+    let ui = window.dxfOpts, wantBar = !!ui.bar, wantFrame = !!ui.frame;
+    // Plot scale / စာရွက်ဘောင်: PF/CS export က plan အပိုင်းကိုသာ ကြိုတွက်ပေးထားသည် (o.layout)၊ ကျန် export များမှာ ပုံတစ်ခုလုံးအပေါ် တွက်
+    let lay = o.layout || window.dxfPlanLayout(bb);
+    let scale = lay.scale, k = lay.k;
+
+    let extra = [], newLayers = [];
+    let ext = { minX: bb.minX, minY: bb.minY, maxX: bb.maxX, maxY: bb.maxY };
+    const grow = function(x1, y1, x2, y2) { ext.minX = Math.min(ext.minX, x1); ext.minY = Math.min(ext.minY, y1); ext.maxX = Math.max(ext.maxX, x2); ext.maxY = Math.max(ext.maxY, y2); };
+    if (wantFrame) {
+        newLayers.push({ name: 'PLOT_FRAME', color: 1 });
+        let f = lay.frame, i = lay.inner;
+        window.dxfRectE('PLOT_FRAME', f.minX, f.minY, f.maxX, f.maxY).forEach(function(e) { extra.push(e); });
+        window.dxfRectE('PLOT_FRAME', i.minX, i.minY, i.maxX, i.maxY).forEach(function(e) { extra.push(e); });
+        let b = lay.bbox, fits = b.minX >= i.minX - 1e-6 && b.maxX <= i.maxX + 1e-6 && b.minY >= i.minY - 1e-6 && b.maxY <= i.maxY + 1e-6;
+        extra.push(window.dxfTextE('PLOT_FRAME', (f.minX + f.maxX) / 2, f.maxY + 6 * k, 4 * k, lay.paper + ' ' + lay.orient + '  -  PLOT SCALE 1:' + scale + (fits ? '  (window-select this frame)' : '  -  WARNING: drawing is larger than this frame - choose Auto or a larger scale number'), 0));
+        grow(f.minX, f.minY, f.maxX, f.maxY + 10 * k);
+    }
+    if (wantBar) {
+        newLayers.push({ name: 'SCALE_BAR', color: 7 });
+        let th = 2.5 * k, barH = 2 * k;                          // စာရွက်ပေါ် စာ ၂.၅ mm၊ bar အထူ ၂ mm
+        let len = window.dxfNiceLen(scale * 0.1);                // စာရွက်ပေါ် ≤ ၁၀ cm
+        let x0 = wantFrame ? lay.barX : lay.bbox.minX, y0 = wantFrame ? lay.barY : lay.bbox.minY - scale * 0.02;
+        window.dxfHBar(x0, y0, len, barH, th, 'SCALE_BAR', 'SCALE 1:' + scale).forEach(function(e) { extra.push(e); });
+        grow(x0 - th, y0 - th * 2.4, x0 + len + th * 3, y0 + barH + th * 2.4);
+    }
+    bb = ext;
+
+    if (extra.length) lines.splice(ee, 0, extra.join('\n'));
+    let out = lines.join('\n');
+
+    // ---- HEADER: Extents / Limits ----
+    let n = window.dxfNum;
+    let hdr = "9\n$EXTMIN\n10\n" + n(bb.minX) + "\n20\n" + n(bb.minY) + "\n30\n0.0\n9\n$EXTMAX\n10\n" + n(bb.maxX) + "\n20\n" + n(bb.maxY) + "\n30\n0.0\n" +
+              "9\n$LIMMIN\n10\n" + n(bb.minX) + "\n20\n" + n(bb.minY) + "\n9\n$LIMMAX\n10\n" + n(bb.maxX) + "\n20\n" + n(bb.maxY) + "\n";
+    if (out.indexOf("$ACADVER\n1\nAC1009\n") >= 0) out = out.replace("$ACADVER\n1\nAC1009\n", function() { return "$ACADVER\n1\nAC1009\n" + hdr; });
+
+    // ---- VPORT *ACTIVE: စတင်ဖွင့်ချိန် view ကို ပုံအလယ်၊ ပုံတစ်ခုလုံးဆန့်အောင် ----
+    let w = bb.maxX - bb.minX, h = bb.maxY - bb.minY;
+    let viewH = Math.max(h, w / 1.5, 1) * 1.08;
+    let cx = (bb.minX + bb.maxX) / 2, cy = (bb.minY + bb.maxY) / 2;
+    let vport = "0\nTABLE\n2\nVPORT\n70\n1\n0\nVPORT\n2\n*ACTIVE\n70\n0\n10\n0.0\n20\n0.0\n11\n1.0\n21\n1.0\n12\n" + n(cx) + "\n22\n" + n(cy) +
+        "\n13\n0.0\n23\n0.0\n14\n1.0\n24\n1.0\n15\n0.0\n25\n0.0\n16\n0.0\n26\n0.0\n36\n1.0\n17\n0.0\n27\n0.0\n37\n0.0\n40\n" + n(viewH) +
+        "\n41\n1.5\n42\n50.0\n43\n0.0\n44\n0.0\n50\n0.0\n51\n0.0\n71\n0\n72\n100\n73\n1\n74\n3\n75\n0\n76\n0\n77\n0\n78\n0\n0\nENDTAB\n";
+    let m = out.match(/0\nTABLE\n2\nLAYER\n70\n(\d+)/);
+    if (m) {
+        // LAYER table ထဲ တကယ်ရှိသော record အရေအတွက်အတိုင်း count ကိုညှိ (မူလ export များတွင် ကြေညာထားသောအရေအတွက်နှင့် မကိုက်တာ ရှိသည်)
+        let tStart = out.indexOf(m[0]), tEnd = out.indexOf("\n0\nENDTAB", tStart);
+        let defined = (out.slice(tStart, tEnd < 0 ? out.length : tEnd).match(/\n0\nLAYER\n/g) || []).length;
+        let count = defined + newLayers.length;
+        let layerRec = newLayers.map(function(l) { return "\n0\nLAYER\n2\n" + l.name + "\n70\n0\n62\n" + l.color + "\n6\nCONTINUOUS"; }).join('');
+        out = out.replace(m[0], function() { return vport + "0\nTABLE\n2\nLAYER\n70\n" + count + layerRec; });
+    } else {
+        // TABLES section မရှိလျှင် header ပြီးနောက်မှာ VPORT တစ်ခုတည်းပါ TABLES section ထည့်
+        let hi = out.indexOf("0\nENDSEC\n");
+        if (hi >= 0) { hi += "0\nENDSEC\n".length; out = out.slice(0, hi) + "0\nSECTION\n2\nTABLES\n" + vport + "0\nENDSEC\n" + out.slice(hi); }
+    }
+    return out;
+};

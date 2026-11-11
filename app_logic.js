@@ -112,7 +112,7 @@ function attachPasteFilterToInputs() {
     });
 }
 
-window.openAbout = function() { document.getElementById('aboutModal').style.display='flex'; history.pushState({modal: true}, "Modal", ""); };
+window.openAbout = function() { let lu = document.getElementById('about_last_update'); if (lu && window.APP_LAST_UPDATE) lu.innerText = window.APP_LAST_UPDATE; document.getElementById('aboutModal').style.display='flex'; history.pushState({modal: true}, "Modal", ""); };
 window.closeAbout = function() {
     if(document.getElementById('aboutModal').style.display === 'flex') {
         history.back(); 
@@ -396,24 +396,28 @@ window.toggleGlobalGPS = function() {
     }
 };
 
-function fetchGeoidDataFromNative(lat, lon) {
+// Geoid N ကို ဖတ်ပေးသည် (ဘာ global မှ မပြောင်း) - Android native / web EGM2008 → EGM96။ မရလျှင် null
+window.getGeoidN = function(lat, lon) {
     if (window.AndroidNative && window.AndroidNative.getGeoidData) {
-        let jsonStr = window.AndroidNative.getGeoidData(lat, lon);
-        try { 
-            let data = JSON.parse(jsonStr); 
-            if (data.geoid_n !== null) { window.currentGeoidN = data.geoid_n; window.currentGeoidModel = data.geoid_model; } 
-            else { window.currentGeoidN = 0; window.currentGeoidModel = "Unknown"; } 
-        } catch(e) { window.currentGeoidN = 0; window.currentGeoidModel = "Unknown"; }
-    } else {
-        let n = window.webEgm2008 ? window.webEgm2008.getUndulation(lat, lon) : null;
-        if (n !== null) { window.currentGeoidN = n; window.currentGeoidModel = "EGM2008"; }
-        else {
-            let glon = lon < 0 ? lon + 360 : lon;
-            let n96 = window.webEgm96 ? window.webEgm96.getUndulation(lat, glon) : null;
-            if (n96 !== null) { window.currentGeoidN = n96; window.currentGeoidModel = "EGM96"; }
-            else { window.currentGeoidN = 0; window.currentGeoidModel = "Unknown"; }
-        }
+        try {
+            let data = JSON.parse(window.AndroidNative.getGeoidData(lat, lon));
+            if (data && data.geoid_n !== null && data.geoid_n !== undefined) return { n: data.geoid_n, model: data.geoid_model || "Unknown" };
+        } catch (e) {}
+        return null;
     }
+    let n = window.webEgm2008 ? window.webEgm2008.getUndulation(lat, lon) : null;
+    if (n !== null && n !== undefined) return { n: n, model: "EGM2008" };
+    let glon = lon < 0 ? lon + 360 : lon;
+    let n96 = window.webEgm96 ? window.webEgm96.getUndulation(lat, glon) : null;
+    if (n96 !== null && n96 !== undefined) return { n: n96, model: "EGM96" };
+    return null;
+};
+
+// GPS panel အတွက် global (currentGeoidN / currentGeoidModel) ကို ပြင်သည် - အရင်အပြုအမူအတိုင်း
+function fetchGeoidDataFromNative(lat, lon) {
+    let g = window.getGeoidN(lat, lon);
+    if (g) { window.currentGeoidN = g.n; window.currentGeoidModel = g.model; }
+    else { window.currentGeoidN = 0; window.currentGeoidModel = "Unknown"; }
 }
 
 window.onNativeGPSUpdate = function(d) {

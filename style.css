@@ -281,3 +281,19 @@ select:disabled{opacity:0.6;background:#e2e8f0;cursor:not-allowed;}
 .dp-lbl{font-size:10px;font-weight:bold;color:#64748b;}
 .dp-in{width:78px;height:22px;padding:1px 3px;font-size:11px;font-weight:bold;text-align:center;border:1px solid #94a3b8;border-radius:3px;}
 .dp-mini{height:22px;padding:0 5px;font-size:10px;font-weight:bold;border:none;border-radius:3px;background:#0284c7;color:#fff;cursor:pointer;}
+
+
+/* ---- DXF options row (Plot scale / Scale bar / North arrow) ---- */
+.dxf-opts{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 0;padding:6px 8px;border:1px dashed var(--input-border);border-radius:8px;font-size:11px;color:var(--text);}
+.dxf-opts-title{font-weight:800;letter-spacing:.5px;color:var(--label-text);}
+.dxf-opt{display:inline-flex;align-items:center;gap:4px;margin:0;font-size:11px;font-weight:700;color:var(--text);cursor:pointer;}
+.dxf-opt select{width:auto;height:26px;margin:0;padding:2px 4px;font-size:11px;}
+.dxf-opt input{width:15px;height:15px;margin:0;}
+.dxf-opt-note{font-size:10px;color:var(--label-text);}
+
+/* ---- About: What's new ---- */
+.about-new{margin-bottom:12px;padding:8px 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--res-bg);}
+.about-new > summary{cursor:pointer;font-weight:bold;color:var(--primary);}
+.about-new ul{margin:6px 0 0;padding-left:18px;}
+.about-new li{margin-bottom:5px;font-size:12px;}
+.chk-row input.num-sm{width:64px;height:28px;margin:0;padding:2px 4px;text-align:center;font-size:12px;}

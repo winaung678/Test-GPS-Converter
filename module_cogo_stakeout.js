@@ -1280,6 +1280,7 @@ window.exportEccDXF = function() {
     for (let c = 0; c < totalCols; c++) { writeTableText(0, c, headers[c]); }
     window.eccRecords.forEach((r, idx) => { let row = idx + 1; writeTableText(row, 0, (idx + 1).toString()); writeTableText(row, 1, r.pNo); writeTableText(row, 2, r.dN.toFixed(3)); writeTableText(row, 3, r.dE.toFixed(3)); writeTableText(row, 4, r.aN.toFixed(3)); writeTableText(row, 5, r.aE.toFixed(3)); writeTableText(row, 6, r.diffN.toFixed(0)); writeTableText(row, 7, r.diffE.toFixed(0)); writeTableText(row, 8, r.eccMM.toFixed(0)); });
     dxfContent += "0\nENDSEC\n0\nEOF\n";
+    dxfContent = window.dxfPostProcess(dxfContent, {});
     let fileName = `Eccentricity_Drawing_${new Date().getTime()}.dxf`;
     if (window.AndroidNative && window.AndroidNative.downloadConvertedCSV) { window.AndroidNative.downloadConvertedCSV(dxfContent, fileName); } else { let blob = new Blob([dxfContent], { type: 'application/dxf' }); let url = URL.createObjectURL(blob); let a = document.createElement("a"); a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
 };

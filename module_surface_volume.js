@@ -451,7 +451,7 @@ window.exportTopoDXF = function() {
     });
 
     // Contour label များ - Label Line နှင့် ဖြတ်သော contour တိုင်းမှာ (Label Line မရှိလျှင် မထည့်)
-    window.computeContourLabels(txtH * 3).forEach(l => {
+    window.computeContourLabels(txtH).forEach(l => {
         dxf.push(window.contourLabelDxfEntity(l, txtH, l.z.toFixed(3)));
     });
 
@@ -525,7 +525,7 @@ let gridTxtH = Math.max(2.5, interval * 0.12); // Grid 50 ဆိုလျှင�
     }
     dxf.push("0\nENDSEC\n0\nEOF");
     
-    let dxfContent = dxf.join("\n");
+    let dxfContent = window.dxfPostProcess(dxf.join("\n"), {});     // Extents + initial view + scale bar + north arrow
 
     let fileName = `3D_Topo_Map_With_Grid_${new Date().getTime()}.dxf`;
     let mimeType = 'application/dxf';
@@ -815,6 +815,7 @@ window.export3DTinDXF = function() {
     });
 
     dxf += "0\nENDSEC\n0\nEOF\n";
+    dxf = window.dxfPostProcess(dxf, {});
 
     let fileName = `3D_TIN_Surface_${new Date().getTime()}.dxf`;
     let mimeType = 'application/dxf';
@@ -2126,7 +2127,7 @@ window.exportVolDXF = function() {
             dxf += `0\nSEQEND\n8\n${layer}\n`;
 
         });
-        window.computeContourLabels(txtH * 3).forEach(l => {
+        window.computeContourLabels(txtH).forEach(l => {
             dxf += window.contourLabelDxfEntity(l, txtH, l.z.toFixed(3)) + "\n";
         });
     }
@@ -2273,6 +2274,7 @@ let gridTxtH = Math.max(2.5, interval * 0.12);
     writeCell(lastRow, 8, Math.abs(grandNet).toFixed(3) + (grandNet >= 0 ? " (Cut)" : " (Fill)"), 2);
 
     dxf += "0\nENDSEC\n0\nEOF\n";
+    dxf = window.dxfPostProcess(dxf, {});
 
     let fileName = `Earthwork_Volume_Report_${new Date().getTime()}.dxf`;
     if (window.AndroidNative && window.AndroidNative.downloadConvertedCSV) { 
@@ -3039,6 +3041,10 @@ window.exportProfileDXF = function() {
 
     let pOriginX = maxE + topoGridInt + (planGridTxtH * 16);
     let pOriginY = maxN + (topoGridInt * 2);
+    // Plan ၏ Plot scale / စာရွက်ဘောင်ကို အစကတည်းက တွက် (Topo DXF နှင့်တူ) - ဘောင်က Profile/CS တွေနှင့် မထပ်အောင် Profile/CS များကို ဘောင်၏ ညာဘက်သို့ ရွှေ့
+    const _planBBox = { minX: minE - topoGridInt - planGridTxtH * 6, maxX: maxE + topoGridInt + planGridTxtH * 6, minY: minN - topoGridInt - planGridTxtH * 6, maxY: maxN + topoGridInt + planGridTxtH * 6 };
+    const _layout = window.dxfPlanLayout(_planBBox);
+    if (window.dxfOpts.frame) pOriginX = Math.max(pOriginX, _layout.frame.maxX + _layout.scale * 0.02);
 
     dxf.push("0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n24");
     dxf.push("0\nLAYER\n2\nTOPO_POINTS\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_POINT_NO\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_POINT_CODES\n70\n0\n62\n3\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_MAJOR_CONTOUR\n70\n0\n62\n2\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_MINOR_CONTOUR\n70\n0\n62\n8\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_LABELS\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_BOUNDARY\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nMAP_GRID\n70\n0\n62\n8\n6\nCONTINUOUS\n0\nLAYER\n2\nMAP_TEXT\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nNORTH_ARROW\n70\n0\n62\n7\n6\nCONTINUOUS");
@@ -3063,7 +3069,7 @@ window.exportProfileDXF = function() {
             let layer = poly.isMajor ? "TOPO_MAJOR_CONTOUR" : "TOPO_MINOR_CONTOUR";
             addContour3D(layer, poly);
         });
-        window.computeContourLabels(planTxtH * 3).forEach(l => {
+        window.computeContourLabels(planTxtH).forEach(l => {
             addText("TOPO_LABELS", l.z.toFixed(3), l.e, l.n, planTxtH, 1, l.angleDeg);
         });
     }
@@ -3351,6 +3357,7 @@ window.exportProfileDXF = function() {
 
         // --- title ---
         addText("PROF_TEXT", title, x0, maxY + txtH * 5, txtH * 2.5, 0, 0);
+
         return (maxY - originY) + tableH + txtH * 16;
     }
 
@@ -3465,7 +3472,7 @@ window.exportProfileDXF = function() {
     }
 
     dxf.push("0\nENDSEC\n0\nEOF");
-    let dxfContent = dxf.join("\n");
+    let dxfContent = window.dxfPostProcess(dxf.join("\n"), { layout: _layout });   // Plan ၏ Plot scale/ဘောင် = Topo DXF နှင့်တူ (Profile/CS များကို ၎င်းတို့၏ H/V scale ဖြင့် ထုတ်)
     let fileName = `Plan_Profile_Sections_${new Date().getTime()}.dxf`;
     if (window.AndroidNative && window.AndroidNative.downloadConvertedCSV) { window.AndroidNative.downloadConvertedCSV(dxfContent, fileName);
     } else {
@@ -3489,15 +3496,24 @@ window.labelEditIndex = null;      // ရှိပြီးသား line ကိ
 window.labelLineLayer = null;
 
 // Label များ တွက်သည်: [{ n, e, z, isMajor, p1, p2, angleDeg, text }]
-// minGap = label နှစ်ခုကြား အနည်းဆုံးအကွာ (စာမထပ်စေရန်) - Major ကို ဦးစားပေး
-window.computeContourLabels = function(minGap) {
+//   h = စာအမြင့် (မီတာ) - Label ၂ ခု ထပ်မထပ်ကို contour ဦးတည်ရာအတိုင်း လှည့်ထားသော စာဘောက်စ် (အလျား ≈ စာလုံးရေ × 0.62h၊ အမြင့် h) ဖြင့် စစ်သည်
+//   ရလဒ် array တွင် .total (ဖြတ်မိသည့် အရေအတွက်) နှင့် .skipped (နီးလွန်းလို့ ကျော်ရသော နေရာများ) ပါသည်
+//   ထပ်မထပ်စည်းမျဉ်း: Gap (စာအမြင့် × g) - '#topo_label_gap'၊ 'Label every crossing' (#topo_label_all) ဖွင့်ထားလျှင် ဘာမှမကျော်
+window.computeContourLabels = function(h, optsIn) {
     let out = [];
+    out.total = 0; out.skipped = [];
     let lines = (window.topoLabelLines || []).map(l => l.pts);
     if (window.isLabelDrawing && window.labelDraft && window.labelDraft.length >= 2) lines = lines.concat([window.labelDraft]);
     if (lines.length === 0 || !window.topoContours || window.topoContours.length === 0) return out;
 
     let minorEl = document.getElementById('topo_label_minor');
     let incMinor = !!(minorEl && minorEl.checked);
+    let allEl = document.getElementById('topo_label_all'), gapEl = document.getElementById('topo_label_gap');
+    let o = optsIn || {};
+    let labelAll = (o.all !== undefined) ? !!o.all : !!(allEl && allEl.checked);
+    let gapF = (o.gap !== undefined) ? o.gap : parseFloat(gapEl && gapEl.value);
+    if (!isFinite(gapF) || gapF < 0) gapF = 0.1;
+    h = (h > 0) ? h : 0.5;
     let cands = [];
     const EPS = 1e-12;
 
@@ -3529,16 +3545,40 @@ window.computeContourLabels = function(minGap) {
     });
 
     cands.sort((x, y) => (y.isMajor ? 1 : 0) - (x.isMajor ? 1 : 0));
-    let gap2 = (minGap > 0) ? minGap * minGap : 0;
-    cands.forEach(c => {
-        for (let i = 0; i < out.length; i++) {
-            let dn = out[i].n - c.n, de = out[i].e - c.e;
-            if (dn * dn + de * de < gap2 || (dn === 0 && de === 0)) return;
-        }
+    const clr = gapF * h;                                         // စာဘောက်စ်ပတ်လည် ချန်ရန်နေရာ
+    const boxOf = c => {
         let ang = Math.atan2(c.p2.n - c.p1.n, c.p2.e - c.p1.e) * (180 / Math.PI);
-        if (ang > 90 || ang <= -90) ang += 180;               // စာ အမြဲ ဖတ်လို့ရသည့်ဘက် (ပြောင်းပြန်မဖြစ်စေ)
+        if (ang > 90 || ang <= -90) ang += 180;                   // စာ အမြဲ ဖတ်လို့ရသည့်ဘက် (ပြောင်းပြန်မဖြစ်စေ)
         c.angleDeg = ang;
         c.text = c.z.toFixed(2);
+        let r = ang * Math.PI / 180, W = c.z.toFixed(3).length * 0.62 * h;
+        let hw = W / 2 + clr, hh = h / 2 + clr;
+        return { n: c.n, e: c.e, ux: Math.cos(r), uy: Math.sin(r), hw: hw, hh: hh, rad: Math.hypot(hw, hh) };   // (e,n) မြေပြင်ပေါ် u = စာအလျားဦးတည်ရာ
+    };
+    // Oriented rectangle ၂ ခု ထပ်မထပ် (Separating Axis)
+    const overlap = (A, B) => {
+        let de = B.e - A.e, dn = B.n - A.n;
+        if (de * de + dn * dn > (A.rad + B.rad) * (A.rad + B.rad)) return false;
+        let axes = [[A.ux, A.uy], [-A.uy, A.ux], [B.ux, B.uy], [-B.uy, B.ux]];
+        for (let i = 0; i < 4; i++) {
+            let ax = axes[i][0], ay = axes[i][1];
+            let dist = Math.abs(de * ax + dn * ay);
+            let rA = A.hw * Math.abs(A.ux * ax + A.uy * ay) + A.hh * Math.abs(-A.uy * ax + A.ux * ay);
+            let rB = B.hw * Math.abs(B.ux * ax + B.uy * ay) + B.hh * Math.abs(-B.uy * ax + B.ux * ay);
+            if (dist >= rA + rB - 1e-9) return false;      // ထိုက်ထိုက်တိုက်တိုက်ထိရုံ = မထပ်
+        }
+        return true;
+    };
+    let boxes = [];
+    cands.forEach(c => {
+        let bx = boxOf(c);
+        out.total++;
+        if (!labelAll) {
+            for (let i = 0; i < boxes.length; i++) {
+                if (overlap(boxes[i], bx)) { out.skipped.push({ n: c.n, e: c.e, z: c.z }); return; }
+            }
+        }
+        boxes.push(bx);
         out.push(c);
     });
     return out;
@@ -3549,15 +3589,28 @@ window.contourLabelDxfEntity = function(l, txtH, text) {
     return `0\nTEXT\n8\nTOPO_LABELS\n10\n${l.e.toFixed(3)}\n20\n${l.n.toFixed(3)}\n30\n${l.z.toFixed(3)}\n40\n${txtH}\n1\n${text}\n50\n${l.angleDeg.toFixed(3)}\n72\n1\n11\n${l.e.toFixed(3)}\n21\n${l.n.toFixed(3)}\n31\n${l.z.toFixed(3)}\n73\n2`;
 };
 
-window.updateLabelInfo = function(count) {
+window.updateLabelInfo = function(labels) {
     let info = document.getElementById('topo_label_info');
     if (!info) return;
-    let nLines = window.topoLabelLines.length;
-    if (nLines === 0 && !(window.isLabelDrawing && window.labelDraft.length >= 2)) info.innerText = "No label line yet - no contour labels are shown.";
-    else info.innerText = `${nLines} label line${nLines === 1 ? '' : 's'} · ${count} label${count === 1 ? '' : 's'}`;
+    let nLines = window.topoLabelLines.length, n = labels ? labels.length : 0;
+    if (nLines === 0 && !(window.isLabelDrawing && window.labelDraft.length >= 2)) { info.innerText = "No label line yet - no contour labels are shown."; return; }
+    let sk = labels && labels.skipped ? labels.skipped.length : 0, tot = labels && labels.total ? labels.total : n;
+    info.innerText = `${nLines} label line${nLines === 1 ? '' : 's'} · ${tot} crossing${tot === 1 ? '' : 's'} · ${n} label${n === 1 ? '' : 's'}` + (sk ? ` · ${sk} skipped (too close - purple dots)` : '');
 };
 
-// Map ပေါ်က contour label စာသား layer ကို ပြန်တည်ဆောက်သည် (Line / Surface / Setting ပြောင်းတိုင်း)
+// နီးလွန်းလို့ Label မတပ်ဘဲ ကျော်ထားသော နေရာများကို ခရမ်းရောင်အစက်ဖြင့် ပြ (Label lines ပြနေချိန်/ဆွဲနေချိန်သာ)
+window.renderLabelSkipMarkers = function(labels) {
+    if (!window.leafletMap) return;
+    if (window.labelSkipLayer) { window.leafletMap.removeLayer(window.labelSkipLayer); window.labelSkipLayer = null; }
+    let sk = labels && labels.skipped ? labels.skipped : [];
+    if (sk.length === 0 || !(window.isLabelDrawing || window.layerOn('tgl_label_lines'))) return;
+    let layers = sk.slice(0, 400).map(p => {
+        let c = window.getDatumCoordsForLocal(p.n, p.e);
+        return L.circleMarker([c.lat, c.lon], { radius: 4, color: '#7c3aed', weight: 2, fillColor: '#c4b5fd', fillOpacity: 0.9, interactive: false });
+    });
+    window.labelSkipLayer = L.layerGroup(layers).addTo(window.leafletMap);
+};
+
 // Label အစုထဲက အနီးဆုံးအကွာ minGap အတွင်း ထပ်နေသည်များကို ဖယ် (ဦးစားပေးအစဉ်အတိုင်း စောသည်ကို ထား)
 window.thinLabels = function(labels, minGap) {
     let g2 = minGap * minGap, out = [];
@@ -3575,8 +3628,9 @@ window.refreshContourLabels = function() {
     window.topoContourTextLayer = null;
 
     let txtH = parseFloat((document.getElementById('topo_text_height') || {}).value) || 0.5;
-    let all = window.computeContourLabels(txtH * 3);
-    window.updateLabelInfo(all.length);
+    let all = window.computeContourLabels(txtH);
+    window.updateLabelInfo(all);
+    window.renderLabelSkipMarkers(all);
     let map = window.leafletMap;
     if (!map || !window.topoLayerGroup || all.length === 0 || typeof L.CanvasTextLayer === 'undefined') return;
     if (!window.layerOn('tgl_contour_labels')) return;           // 🏷️ Contour labels chip ပိတ်ထားလျှင် မပြ

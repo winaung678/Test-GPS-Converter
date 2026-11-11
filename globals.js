@@ -113,3 +113,6 @@ window.profBoundaryLayer = null;     // အချောဆွဲပြီးသ�
 window.profDraftMarker = null;       // ယာယီအဝါရောင် အမှတ်
 window.profDraftLine = null;         // ယာယီအဝါရောင် မျဉ်းဆက်
 window.profCrossSectionLines = null; // Map ပေါ်မှာ ခုတ်ပြမယ့် Cross Section မျဉ်းတိုလေးများ
+
+// About ထဲမှာပြမည့် နောက်ဆုံး Update ရက်စွဲ (Update လုပ်တိုင်း ဒီတစ်နေရာတည်းကိုသာ ပြင်ပါ။ 14 March 2026 = APK စတင်ဖန်တီးသည့်ရက်၊ မပြင်ရ)
+window.APP_LAST_UPDATE = "9 November 2026";
