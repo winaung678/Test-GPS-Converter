@@ -158,52 +158,6 @@ function m_inverse(E, N, z, ell) {
 }
 
 // ==========================================
-// --- OFFLINE GEOID GRIDS ---
-// ==========================================
-const baseMyanmarGrid=[[-51,-49.6,-48.2,-46.9,-45.5,-44.1,-42.8,-41.5,-40.1,-38.8,-37.5],[-51.8,-50.4,-49,-47.6,-46.3,-44.9,-43.6,-42.3,-41,-39.7,-38.4],[-52.5,-51.1,-49.8,-48.4,-47.1,-45.8,-44.5,-43.2,-41.9,-40.6,-39.4],[-53.1,-51.8,-50.5,-49.2,-47.9,-46.6,-45.3,-44,-42.7,-41.4,-40.2],[-53.8,-52.5,-51.2,-49.9,-48.6,-47.3,-46,-44.8,-43.5,-42.2,-41],[-54.4,-53.1,-51.8,-50.5,-49.3,-48,-46.7,-45.5,-44.2,-43,-41.8],[-54.9,-53.7,-52.4,-51.2,-49.9,-48.7,-47.4,-46.2,-44.9,-43.7,-42.5],[-55.3,-54.1,-52.9,-51.7,-50.4,-49.2,-48,-46.8,-45.6,-44.4,-43.2],[-55.7,-54.5,-53.3,-52.1,-50.9,-49.7,-48.5,-47.4,-46.2,-45.1,-43.9],[-55.9,-54.8,-53.6,-52.4,-51.3,-50.1,-49,-47.8,-46.7,-45.6,-44.5],[-56.1,-55,-53.8,-52.7,-51.6,-50.5,-49.4,-48.3,-47.2,-46.1,-45],[-56.1,-55,-53.9,-52.8,-51.7,-50.7,-49.6,-48.6,-47.5,-46.5,-45.4],[-56,-55,-53.9,-52.9,-51.8,-50.8,-49.8,-48.8,-47.8,-46.8,-45.8],[-55.8,-54.8,-53.7,-52.7,-51.7,-50.8,-49.8,-48.9,-47.9,-47,-46.1],[-55.5,-54.5,-53.5,-52.6,-51.6,-50.7,-49.8,-48.9,-48,-47.2,-46.3],[-55.1,-54.1,-53.1,-52.2,-51.3,-50.4,-49.6,-48.7,-47.9,-47.1,-46.4],[-54.6,-53.7,-52.7,-51.9,-51,-50.2,-49.4,-48.6,-47.9,-47.2,-46.4],[-54,-53.1,-52.2,-51.4,-50.5,-49.8,-49,-48.3,-47.7,-47,-46.3],[-53.3,-52.4,-51.5,-50.8,-50,-49.3,-48.6,-48,-47.4,-46.8,-46.2],[-52.5,-51.6,-50.8,-50.1,-49.4,-48.8,-48.1,-47.6,-47,-46.5,-45.9],[-51.6,-50.8,-50,-49.4,-48.7,-48.1,-47.5,-47,-46.5,-46.1,-45.6]];
-const baseSgGrid=[[8.5,9.2],[7.8,8.4]];
-
-function expandTo025Grid(g) {
-    let r = [];
-    for (let i = 0; i < (g.length - 1) * 4 + 1; i++) {
-        let R = [];
-        let r0 = Math.floor(i / 4);
-        let r1 = Math.min(r0 + 1, g.length - 1);
-        let dr = i / 4 - r0;
-        for (let j = 0; j < (g[0].length - 1) * 4 + 1; j++) {
-            let c0 = Math.floor(j / 4);
-            let c1 = Math.min(c0 + 1, g[0].length - 1);
-            let dc = j / 4 - c0;
-            R.push(g[r0][c0] * (1 - dr) * (1 - dc) + g[r0][c1] * (1 - dr) * dc + g[r1][c0] * dr * (1 - dc) + g[r1][c1] * dr * dc);
-        }
-        r.push(R);
-    }
-    return r;
-}
-
-const myanmarGeoid = { lat0: 9, lon0: 92, dLat: 0.25, dLon: 0.25, grid: expandTo025Grid(baseMyanmarGrid) };
-const sgGeoid = { lat0: 1, lon0: 103, dLat: 0.25, dLon: 0.25, grid: expandTo025Grid(baseSgGrid) };
-
-function getOfflineEGM96(la, lo) {
-    let m = null;
-    if (la >= 9 && la <= 29 && lo >= 92 && lo <= 102) m = myanmarGeoid;
-    else if (la >= 1 && la <= 2 && lo >= 103 && lo <= 104) m = sgGeoid;
-    
-    if (!m) return 0;
-    
-    let r = (la - m.lat0) / m.dLat;
-    let c = (lo - m.lon0) / m.dLon;
-    let r0 = Math.floor(r);
-    let c0 = Math.floor(c);
-    let dr = r - r0;
-    let dc = c - c0;
-    let r1 = r0 + 1 >= m.grid.length ? r0 : r0 + 1;
-    let c1 = c0 + 1 >= m.grid[0].length ? c0 : c0 + 1;
-    
-    return (m.grid[r0][c0] * (1 - dc) + m.grid[r0][c1] * dc) * (1 - dr) + (m.grid[r1][c0] * (1 - dc) + m.grid[r1][c1] * dc) * dr;
-}
-
-// ==========================================
 // --- UTILITY MATH FUNCTIONS ---
 // ==========================================
 function toRad(deg) { return deg * Math.PI / 180; }
@@ -227,10 +181,11 @@ function calcBearing(lat1, lon1, lat2, lon2) {
 }
 
 function m_toDMS(dd, isLat) {
-    let a = Math.abs(dd);
-    let d = Math.floor(a);
-    let m = Math.floor((a - d) * 60);
-    let s = ((a - d - m / 60) * 3600).toFixed(3);
+    // milli-arcsecond ကို integer ဖြင့်ပိုင်းပြီး carry မှန်စေ (59.9996" => 60.000" မဖြစ်စေရန်)
+    let ms = Math.round(Math.abs(dd) * 3600 * 1000);
+    let d = Math.floor(ms / 3600000);
+    let m = Math.floor((ms % 3600000) / 60000);
+    let s = ((ms % 60000) / 1000).toFixed(3);
     return `${d}° ${m}' ${s}" ${isLat ? (dd >= 0 ? "N" : "S") : (dd >= 0 ? "E" : "W")}`;
 }
 
@@ -259,11 +214,13 @@ function calcPolygonArea(points) {
 // --- COGO CALCULATIONS (GRID INVERSE & TRAVERSE) ---
 // ==========================================
 function toDmsString(dec) {
-    let d = Math.floor(dec);
-    let minFloat = (dec - d) * 60;
-    let m = Math.floor(minFloat);
-    let s = ((minFloat - m) * 60).toFixed(2);
-    return `${d}° ${m}' ${s}"`;
+    // centi-arcsecond ကို integer ဖြင့်ပိုင်း (59.999" => 60.00" မဖြစ်စေရန်)၊ အနုတ်တန်ဖိုးကိုလည်း မှန်စွာကိုင်
+    let neg = dec < 0;
+    let cs = Math.round(Math.abs(dec) * 3600 * 100);
+    let d = Math.floor(cs / 360000);
+    let m = Math.floor((cs % 360000) / 6000);
+    let s = ((cs % 6000) / 100).toFixed(2);
+    return `${neg ? '-' : ''}${d}° ${m}' ${s}"`;
 }
 
 function calcGridInverse(n1, e1, n2, e2) {

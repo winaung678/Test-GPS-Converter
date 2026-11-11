@@ -72,7 +72,7 @@ window.webEgm96 = new WebGeoidReader("egm96_global.bin", 90.0, -90.0, 0.0, 360.0
 window.onload = function() {
     loadPointsFromStorage();
     let storedRecords = localStorage.getItem('surveyProRecords');
-    if (storedRecords) window.recordedPointsBank = JSON.parse(storedRecords);
+    if (storedRecords) window.recordedPointsBank = window.safeJSONParse(storedRecords, [], Array.isArray);
     attachPasteFilterToInputs();
 
     let sSoDatum = localStorage.getItem('pref_so_datum');
@@ -768,7 +768,7 @@ window.renderTrackListUI = function() {
             <div style="flex:1; display:flex; align-items:center; gap:8px;">
                 <span style="display:inline-block; width:14px; height:14px; border-radius:50%; background:${trackColor}; border:1.5px solid rgba(0,0,0,0.3); flex-shrink:0;"></span>
                 <div style="line-height:1.3;">
-                    <b style="color:var(--primary); font-size:13px;">${t.name}</b><br>
+                    <b style="color:var(--primary); font-size:13px;">${window.escHtml(t.name)}</b><br>
                     <span style="font-size:10px; color:var(--label-text);">${t.date} | Pts: ${t.coords ? t.coords.length : 0}</span>
                 </div>
             </div>
@@ -794,7 +794,7 @@ window.toggleTrackOnMap = function(id) {
         // Show
         let trackColor = track.color || '#8b5cf6';
         let layer = L.polyline(track.coords, {color: trackColor, weight: 4, opacity: 0.8}).addTo(window.leafletMap);
-        layer.bindTooltip(track.name, {sticky: true, direction: 'top'});
+        layer.bindTooltip(window.escHtml(track.name), {sticky: true, direction: 'top'});
         window.renderedSavedTracks[id] = layer;
         window.leafletMap.fitBounds(layer.getBounds(), {padding: [30, 30]});
     }

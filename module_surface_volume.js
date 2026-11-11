@@ -90,7 +90,7 @@ window.showTopoPointsOnMapOnly = function() {
 
         if (!isNaN(lat) && !isNaN(lon)) {
             let marker = L.circleMarker([lat, lon], { radius: 4, color: 'transparent', weight: 20, fillColor: '#3b82f6', fillOpacity: 1, renderer: window.masterTopoCanvas });
-            marker.bindTooltip(`${pt.p}<br>Z: ${pt.z.toFixed(3)}`, { direction: 'top', className: 'pt-tooltip' });
+            marker.bindTooltip(`${window.escHtml(pt.p)}<br>Z: ${pt.z.toFixed(3)}`, { direction: 'top', className: 'pt-tooltip' });
             
            marker.on('click', function(e) {
                 L.DomEvent.stopPropagation(e);
@@ -120,7 +120,7 @@ window.showTopoPointsOnMapOnly = function() {
                 }
 
                 if (!isActionTaken) {
-                    let pName = pt.p ? `<b style="color:#1e40af; font-size:13px;">[ ${pt.p} ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">` : '';
+                    let pName = pt.p ? `<b style="color:#1e40af; font-size:13px;">[ ${window.escHtml(pt.p)} ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">` : '';
                     // ပြောင်းလဲပြီးသား Code (အစားထိုးရန်)
 let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">${pName}<b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}</b></div>`;
                     L.popup().setLatLng(e.latlng).setContent(popupHtml).openOn(window.leafletMap);
@@ -608,7 +608,7 @@ window.clearTopoData = function() {
 // 🔴 Shared Map Undo (Profile အတွက်ပါ ပေါင်းထည့်ထားသည်)
 window.handleSharedMapUndo = function() {
     if (window.isLabelDrawing) {
-        window.undoLabelLine();
+        if (typeof window.undoLabelLine === 'function') window.undoLabelLine();
     }
     else if (window.isProfDrawing) { 
         if (typeof window.undoProfCenterline === 'function') window.undoProfCenterline(); 
@@ -1043,7 +1043,7 @@ function volShowPointsOnMap() {
                 }
 
                 if (!isActionTaken) {
-                    let pName = pt.p ? `<b style="color:#1e40af; font-size:13px;">[ ${pt.p} ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">` : '';
+                    let pName = pt.p ? `<b style="color:#1e40af; font-size:13px;">[ ${window.escHtml(pt.p)} ]</b><hr style="margin:4px 0; border:0.5px solid #ccc;">` : '';
                     // ပြောင်းလဲပြီးသား Code (အစားထိုးရန်)
 let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">${pName}<b style="color:#b91c1c; font-size:13px;">N: ${pt.n.toFixed(3)}<br>E: ${pt.e.toFixed(3)}<br>Z: ${pt.z.toFixed(3)}</b></div>`;
                     L.popup().setLatLng(e.latlng).setContent(popupHtml).openOn(window.leafletMap);
@@ -2813,8 +2813,12 @@ window.processProfileSection = function(quiet) {
     let minZ = validZs.length > 0 ? Math.min(...validZs) : 0;
     let autoDatum = Math.floor(minZ - 2); 
     let datumInput = document.getElementById('prof_datum_z');
-    let datumZ = (datumInput && datumInput.value !== "") ? parseFloat(datumInput.value) : autoDatum;
-    if (datumInput && datumInput.value === "") datumInput.value = autoDatum;
+    // Datum: Auto ဆိုလျှင် Center + Left + Right profile နှင့် Cross Section အားလုံးရဲ့ အနိမ့်ဆုံး Z - 2 m ကနေစ၊
+    // user ကိုယ်တိုင်ရိုက်ထည့်ထားလျှင် ရိုက်တဲ့အတိုင်းထား
+    let datumTyped = (datumInput && datumInput.value !== "") ? parseFloat(datumInput.value) : NaN;
+    let datumIsAuto = !datumInput || datumInput.value === "" || datumInput.dataset.auto === '1' || isNaN(datumTyped);
+    let datumZ = datumIsAuto ? autoDatum : datumTyped;
+    if (datumInput && datumIsAuto) { datumInput.value = autoDatum; datumInput.dataset.auto = '1'; }
 
     window.profSectionData = {
         stations: stations.filter(s => s.isStartEnd || s.isInterval), 
@@ -3042,7 +3046,8 @@ window.exportProfileDXF = function() {
     let pOriginX = maxE + topoGridInt + (planGridTxtH * 16);
     let pOriginY = maxN + (topoGridInt * 2);
     // Plan ၏ Plot scale / စာရွက်ဘောင်ကို အစကတည်းက တွက် (Topo DXF နှင့်တူ) - ဘောင်က Profile/CS တွေနှင့် မထပ်အောင် Profile/CS များကို ဘောင်၏ ညာဘက်သို့ ရွှေ့
-    const _planBBox = { minX: minE - topoGridInt - planGridTxtH * 6, maxX: maxE + topoGridInt + planGridTxtH * 6, minY: minN - topoGridInt - planGridTxtH * 6, maxY: maxN + topoGridInt + planGridTxtH * 6 };
+    // Grid label (လှည့်ထားသော E/N စာ)၊ Title၊ North arrow တို့ ဘောင်မကျော်စေရန် ၎င်းတို့၏ နေရာကိုပါ ထည့်တွက်
+    const _planBBox = { minX: minE - topoGridInt - planGridTxtH * 9, maxX: maxE + topoGridInt + planGridTxtH * 14, minY: minN - topoGridInt - planGridTxtH * 9, maxY: maxN + topoGridInt + planGridTxtH * 13 };
     const _layout = window.dxfPlanLayout(_planBBox);
     if (window.dxfOpts.frame) pOriginX = Math.max(pOriginX, _layout.frame.maxX + _layout.scale * 0.02);
 
@@ -3329,11 +3334,20 @@ window.exportProfileDXF = function() {
 
         // --- Curve Elements row: ဖြောင့် / curve အပိုင်းအလိုက် ---
         let runs = [];
+        let _prevSt = null;
         profilePts.forEach(st => {
             let key = st.isCurve && st.curveCenter ? `C${st.curveCenter.n.toFixed(3)},${st.curveCenter.e.toFixed(3)}` : 'S';
             let last = runs[runs.length - 1];
             if (last && last.key === key) last.end = st.ch;
-            else { if (last) last.end = st.ch; runs.push({ key: key, start: st.ch, end: st.ch, st: st }); }
+            else {
+                // ဖြောင့်/curve ကူးပြောင်းရာ နေရာ = ဖြောင့်အပိုင်း၏ အဆုံး/အစ vertex (PC/PT) ရှိရာ CH
+                // (curve ထဲက ပထမဆုံး chord point မဟုတ်) - ဒါမှ Station မျဉ်းနှင့် တည့်မည်
+                let bch = st.ch;
+                if (last) bch = (last.key === 'S') ? _prevSt.ch : (key === 'S' ? st.ch : _prevSt.ch);
+                if (last) last.end = bch;
+                runs.push({ key: key, start: bch, end: st.ch, st: st });
+            }
+            _prevSt = st;
         });
         runs.forEach((r, idx) => {
             let len = r.end - r.start; if (len < 0.01) return;

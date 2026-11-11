@@ -31,7 +31,7 @@ window.saveManualPoint = function(datumLabel, prefix) {
     
     localStorage.setItem('surveyProRecords', JSON.stringify(window.recordedPointsBank));
     let statBox = document.getElementById(prefix + '_man_stat');
-    if (statBox) statBox.innerHTML = `✅ Point [${p}] Saved!`;
+    if (statBox) statBox.innerHTML = `✅ Point [${window.escHtml(p)}] Saved!`;
     
     if (window.AndroidNative && window.AndroidNative.savePoint) {
         window.AndroidNative.savePoint(p, window.latest_local_N.toFixed(3), window.latest_local_E.toFixed(3), window.latest_Z.toFixed(3), d);
@@ -96,7 +96,7 @@ function savePointToDevice(lN, lE, la, lo, wN, wE, Z, isAveraged) {
     
     let statBox = document.getElementById('record_status');
     statBox.style.display = 'block';
-    statBox.innerHTML = `✅ Point [${p}] Saved! ${isAveraged ? "<span style='color:#8b5cf6;'>[10s Avg]</span>" : ""}<br><span style="color:#0f172a;font-weight:normal;">N: ${lN.toFixed(3)} | E: ${lE.toFixed(3)} | Z: ${zStr}</span>`;
+    statBox.innerHTML = `✅ Point [${window.escHtml(p)}] Saved! ${isAveraged ? "<span style='color:#8b5cf6;'>[10s Avg]</span>" : ""}<br><span style="color:#0f172a;font-weight:normal;">N: ${lN.toFixed(3)} | E: ${lE.toFixed(3)} | Z: ${zStr}</span>`;
     
     if (window.AndroidNative && window.AndroidNative.savePoint) window.AndroidNative.savePoint(p, lN.toFixed(3), lE.toFixed(3), zStr, d);
     
@@ -157,7 +157,7 @@ window.handleCSVFile = function(event) {
     if (!file) return;
     let statBox = document.getElementById('csv_status');
     let dlBtn = document.getElementById('csv_download_btn');
-    if (statBox) { statBox.style.display = 'block'; statBox.innerHTML = `⏳ Processing <b>${file.name}</b>...`; }
+    if (statBox) { statBox.style.display = 'block'; statBox.innerHTML = `⏳ Processing <b>${window.escHtml(file.name)}</b>...`; }
     if (dlBtn) { dlBtn.style.display = 'none'; }
     const reader = new FileReader();
     reader.onload = function(e) { processCSVText(e.target.result, file.name, parseInt(document.getElementById('csv_mode').value)); };
@@ -229,7 +229,7 @@ function processCSVText(csvText, originalFileName, mode) {
     let statBox = document.getElementById('csv_status');
     if (successCount > 0) {
         window.finalCSVOutput = outCSV;
-        if (statBox) statBox.innerHTML = `✅ Successfully converted <b>${successCount}</b> points! (${dName})`;
+        if (statBox) statBox.innerHTML = `✅ Successfully converted <b>${successCount}</b> points! (${window.escHtml(dName)})`;
         let dlBtn = document.getElementById('csv_download_btn');
         if (dlBtn) dlBtn.style.display = 'block';
     } else {
@@ -331,7 +331,7 @@ function savePointsToStorage() { localStorage.setItem('surveyProSetOutPoints', J
 function loadPointsFromStorage() {
     let stored = localStorage.getItem('surveyProSetOutPoints');
     if (stored) {
-        window.setOutPoints = JSON.parse(stored);
+        window.setOutPoints = window.safeJSONParse(stored, [], Array.isArray);
         updateTargetDropdown();
         if (window.leafletMap) window.plotPointsOnMap();
     }
@@ -349,7 +349,7 @@ function activateTarget(pt) {
     if (window.markerTarget) window.leafletMap.removeLayer(window.markerTarget);
     
     window.markerTarget = L.circleMarker([window.targetPoint.lat, window.targetPoint.lon], {radius: 7, color: '#1e3a8a', weight: 2, fillColor: '#f59e0b', fillOpacity: 1}).addTo(window.leafletMap);
-    window.markerTarget.bindTooltip(`${window.targetPoint.p}`, {permanent: true, direction: 'top', className: 'pt-tooltip target-tooltip', offset: [0, -5]}).openTooltip();
+    window.markerTarget.bindTooltip(`${window.escHtml(window.targetPoint.p)}`, {permanent: true, direction: 'top', className: 'pt-tooltip target-tooltip', offset: [0, -5]}).openTooltip();
     
     window.isAutoCenter = true;
     document.getElementById('autoCenterBtn').classList.add('active');
@@ -516,7 +516,7 @@ function updateTargetDropdown() {
     
     let htmlArr = ['<option value="">-- Select Point --</option>']; 
     window.setOutPoints.forEach((pt, idx) => { 
-        htmlArr.push(`<option value="${idx}">${pt.p}</option>`); 
+        htmlArr.push(`<option value="${idx}">${window.escHtml(pt.p)}</option>`); 
     }); 
     sel.innerHTML = htmlArr.join('');
 }
@@ -602,7 +602,7 @@ window.updateAreaOrderUI = function() {
         orderTextSpan.innerHTML = "None";
         orderTextSpan.style.color = "#ef4444";
     } else {
-        let textArray = window.orderedAreaPoints.map((idx, step) => `<b>${step+1}.</b> ${window.setOutPoints[idx].p}`);
+        let textArray = window.orderedAreaPoints.map((idx, step) => `<b>${step+1}.</b> ${window.escHtml(window.setOutPoints[idx].p)}`);
         orderTextSpan.innerHTML = textArray.join(" ➔ ");
         orderTextSpan.style.color = "#059669";
     }
@@ -633,7 +633,7 @@ window.populateAreaPoints = function() {
                 <div class="area-pt-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; background:var(--res-bg); padding:5px 8px; border-radius:5px; border:1px solid var(--input-border);">
                     <div style="flex:1; display:flex; align-items:center; gap:8px;">
                         <input type="checkbox" id="chk_pt_${i}" value="${i}" ${isChecked} onchange="window.toggleCheckboxArea(${i}, this.checked)">
-                        <label for="chk_pt_${i}" style="cursor:pointer; font-size:12px; font-weight:bold; color:var(--primary);">[${pt.p}]</label>
+                        <label for="chk_pt_${i}" style="cursor:pointer; font-size:12px; font-weight:bold; color:var(--primary);">[${window.escHtml(pt.p)}]</label>
                     </div>
                     <button class="top-btn" style="background:#ef4444; color:white; padding:4px 10px; font-size:11px; border-radius:4px;" onclick="deleteSinglePoint(${i})">🗑️ Delete</button>
                 </div>
@@ -943,7 +943,7 @@ window.calcInverse = function() {
     document.getElementById('inv_dist').value = result.dist.toFixed(4);
     document.getElementById('inv_brg_dec').value = result.bearing.toFixed(4);
 
-    let d = Math.floor(result.bearing); let minFloat = (result.bearing - d) * 60; let m = Math.floor(minFloat); let s = ((minFloat - m) * 60).toFixed(2);
+    let _bc = Math.round(result.bearing * 3600 * 100); let d = Math.floor(_bc / 360000); let m = Math.floor((_bc % 360000) / 6000); let s = ((_bc % 6000) / 100).toFixed(2);
     document.getElementById('inv_brg_d').value = d; document.getElementById('inv_brg_m').value = m; document.getElementById('inv_brg_s').value = s;
 
     let resBox = document.getElementById('inv_result_dms');
@@ -1032,7 +1032,7 @@ window.updateTrvPointListUI = function() {
     let listDiv = document.getElementById('trv_point_list'); let statusDiv = document.getElementById('trv_data_status');
     if(window.trvObsPoints.length === 0) { listDiv.innerHTML = '<div style="text-align:center; color:#94a3b8; margin-top:10px;">No points added yet.</div>'; statusDiv.innerText = "Total: 0 points"; return; }
     let html = '<table style="width:100%; text-align:left; border-collapse:collapse;"><tr><th>Pt</th><th>N</th><th>E</th><th>Z</th></tr>';
-    window.trvObsPoints.forEach(pt => { html += `<tr style="border-bottom:1px solid #f1f5f9;"><td>${pt.p}</td><td>${pt.n.toFixed(3)}</td><td>${pt.e.toFixed(3)}</td><td>${pt.z.toFixed(3)}</td></tr>`; });
+    window.trvObsPoints.forEach(pt => { html += `<tr style="border-bottom:1px solid #f1f5f9;"><td>${window.escHtml(pt.p)}</td><td>${pt.n.toFixed(3)}</td><td>${pt.e.toFixed(3)}</td><td>${pt.z.toFixed(3)}</td></tr>`; });
     html += '</table>'; listDiv.innerHTML = html; statusDiv.innerText = `✅ Total: ${window.trvObsPoints.length} observed points`; listDiv.scrollTop = listDiv.scrollHeight;
 };
 
@@ -1211,7 +1211,7 @@ function updateEccRecordUI() {
     let html = '';
     window.eccRecords.forEach((r, idx) => {
         html += `<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #ccc; padding:5px 0;">
-            <div style="font-size:13px; color:var(--text);"><b>${idx+1}. [${r.pNo}]</b> &rarr; Dev: <b style="color:#b91c1c;">${r.eccMM.toFixed(0)}mm</b></div>
+            <div style="font-size:13px; color:var(--text);"><b>${idx+1}. [${window.escHtml(r.pNo)}]</b> &rarr; Dev: <b style="color:#b91c1c;">${r.eccMM.toFixed(0)}mm</b></div>
             <div style="display:flex; gap:5px;">
                 <button class="top-btn" style="background:#3b82f6; color:white; padding:4px 8px;" onclick="editEccRecord(${idx})">✏️</button>
                 <button class="top-btn" style="background:#ef4444; color:white; padding:4px 8px;" onclick="deleteEccRecord(${idx})">🗑️</button>

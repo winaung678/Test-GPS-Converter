@@ -1,4 +1,27 @@
 // ==========================================
+// --- SHARED SAFETY HELPERS ---
+// ==========================================
+// HTML ထဲ ထည့်မည့် user data (point name, file name, layer name ...) ကို escape လုပ်ရန်
+window.escHtml = function(s) {
+    return String(s === undefined || s === null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+};
+
+// localStorage ဒေတာ ပျက်နေလျှင် app မပျက်စေရန် - parse မရ/ပုံစံမမှန်လျှင် fallback ပြန်ပေး
+window.safeJSONParse = function(str, fallback, validator) {
+    try {
+        if (str === null || str === undefined || str === '') return fallback;
+        let v = JSON.parse(str);
+        if (typeof validator === 'function' && !validator(v)) return fallback;
+        return v;
+    } catch (e) {
+        console.warn('safeJSONParse: bad stored data, using fallback', e);
+        return fallback;
+    }
+};
+
+// ==========================================
 // --- GLOBALS & STATE VARIABLES ---
 // ==========================================
 

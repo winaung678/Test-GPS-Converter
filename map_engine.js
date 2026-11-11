@@ -73,10 +73,10 @@ function buildMeasureSessionPopup(session, clickedIdx) {
         }
         
         // 3. Bearing ကို DMS ပုံစံပြောင်းခြင်း (Second ကို ဒသမ ၁ နေရာအထိ ယူမည်)
-        let d = Math.floor(bearingDec);
-        let minFloat = (bearingDec - d) * 60;
-        let m = Math.floor(minFloat);
-        let s = ((minFloat - m) * 60).toFixed(1); 
+        let _bc = Math.round(bearingDec * 3600 * 10);   // 0.1" ကို integer ဖြင့်ပိုင်း (59.96" => 60.0" မဖြစ်စေရန်)
+        let d = Math.floor(_bc / 36000);
+        let m = Math.floor((_bc % 36000) / 600);
+        let s = ((_bc % 600) / 10).toFixed(1); 
         let brgStr = `${d}° ${m}' ${s}"`;
 
         html += `<hr style="margin:4px 0; border:0.5px solid #ccc;">`;
@@ -358,7 +358,7 @@ window.measureClear = function(which) {
 // checkbox ရှိလျှင် ၎င်း၏ အခြေအနေ၊ မရှိလျှင် true (layer ဆွဲရာတွင် ပိတ်ထားသော checkbox ကို လေးစား)
 window.layerOn = function(id) { let e = document.getElementById(id); return e ? !!e.checked : true; };
 
-window.escHtml = function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+// window.escHtml ကို globals.js ထဲ ရွှေ့ထားသည်
 
 window.MAP_TOOL_NAMES = {
     measure: '📏 Measure', label: '🏷️ Label Line', boundary: '✏️ Boundary',
@@ -667,7 +667,7 @@ window.buildSavedPointPopup = function(lat, lon, opts) {
     let html = `<div style="text-align:center; padding: 2px;">`;
     
     if (opts.pointName) {
-        html += `<div style="font-weight:bold; font-size:12px; color:${nameColor}; margin-bottom:2px;">${icon} [ ${opts.pointName} ]</div>`;
+        html += `<div style="font-weight:bold; font-size:12px; color:${nameColor}; margin-bottom:2px;">${icon} [ ${window.escHtml(opts.pointName)} ]</div>`;
     }
     
     if (coords.showLocal) {
@@ -771,23 +771,23 @@ window.initMap = function() {
 
         let coords = window.getDatumCoordsForLatLon(finalLat, finalLon);
 
-        let popupContent = `<div style="text-align:center; padding: 5px;">`;
-        if (snapResult.snapped) { popupContent += `<div style="background:#10b981; color:white; font-size:11px; font-weight:bold; padding:3px; border-radius:4px; margin-bottom:5px;">🧲 Snapped to DXF Node</div>`; }
+        let popupContent = `<div style="text-align:center; padding: 0;">`;
+        if (snapResult.snapped) { popupContent += `<div style="background:#10b981; color:white; font-size:10px; font-weight:bold; padding:1px 3px; border-radius:4px; margin-bottom:3px;">🧲 Snapped to DXF Node</div>`; }
 
         if (coords.showLocal) { 
-            popupContent += `<b style="font-size:12px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:14px; color:#b91c1c;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}</b><hr style="margin:5px 0; border:0.5px solid #ccc;">`; 
+            popupContent += `<b style="font-size:11px; color:#d97706;">[${coords.datumLabel}]</b><br><b style="font-size:12.5px; color:#b91c1c; white-space:nowrap;">N: ${coords.localN.toFixed(3)}<br>E: ${coords.localE.toFixed(3)}</b><hr style="margin:3px 0; border:0.5px solid #ccc;">`; 
         }
         else { popupContent += `<b style="font-size:11px; color:#ef4444; background:#fee2e2; padding:3px; border-radius:4px; display:block; margin-bottom:5px;">⚠️ Out of Local Bounds</b>`; }
 
-        popupContent += `<b style="font-size:12px; color:#1e3a8a;">Lat: ${finalLat.toFixed(7)}<br>Lon: ${finalLon.toFixed(7)}</b>`;
+        popupContent += `<b style="font-size:11px; color:#1e3a8a; white-space:nowrap;">Lat: ${finalLat.toFixed(7)}<br>Lon: ${finalLon.toFixed(7)}</b>`;
         {   // Geoid N (EGM2008) - map ကို နှိပ်သည့်နေရာအတွက်၊ GPS panel ၏ တန်ဖိုးကို မထိ
             let g = (typeof window.getGeoidN === 'function') ? window.getGeoidN(finalLat, finalLon) : null;
-            popupContent += `<div style="margin-top:4px; font-size:12px; font-weight:bold; color:#047857;">${g ? `Geoid N: ${g.n >= 0 ? '+' : ''}${g.n.toFixed(3)} m <span style="font-size:10px; color:#64748b;">(${g.model})</span>` : 'Geoid N: n/a'}</div>`;
+            popupContent += `<div style="margin-top:2px; font-size:11px; font-weight:bold; color:#047857; white-space:nowrap;">${g ? `Geoid N: ${g.n >= 0 ? '+' : ''}${g.n.toFixed(3)} m <span style="font-size:10px; color:#64748b;">(${g.model})</span>` : 'Geoid N: n/a'}</div>`;
         }
 
         if (window.activeApp === 3 && typeof window.setOutFromMapClick === 'function') {
-            popupContent += `<div style="margin-top:5px; display:flex; justify-content:center;">`;
-            popupContent += `<button class="so-popup-btn" style="background:#dc2626; padding:6px 12px; font-size:11px;" onclick="setOutFromMapClick(${finalLat}, ${finalLon})">🎯 Set Out Here</button>`;
+            popupContent += `<div style="margin-top:3px; display:flex; justify-content:center;">`;
+            popupContent += `<button class="so-popup-btn" style="background:#dc2626; padding:4px 10px; font-size:11px;" onclick="setOutFromMapClick(${finalLat}, ${finalLon})">🎯 Set Out Here</button>`;
             popupContent += `</div>`;
         } 
 
@@ -797,8 +797,8 @@ window.initMap = function() {
         }
 
         else if (window.activeApp === 4 && typeof window.addMapPointToArea === 'function' && !document.getElementById('cogo_area_tool').classList.contains('hidden')) {
-            popupContent += `<div style="margin-top:5px; display:flex; justify-content:center;">`;
-            popupContent += `<button class="so-popup-btn" style="background:#10b981; padding:6px 12px; font-size:11px;" onclick="addMapPointToArea(${finalLat}, ${finalLon})">➕ Add to Area</button>`;
+            popupContent += `<div style="margin-top:3px; display:flex; justify-content:center;">`;
+            popupContent += `<button class="so-popup-btn" style="background:#10b981; padding:4px 10px; font-size:11px;" onclick="addMapPointToArea(${finalLat}, ${finalLon})">➕ Add to Area</button>`;
             popupContent += `</div>`;
         }
 
@@ -1131,8 +1131,8 @@ window.renderDXF = function() {
                     L.DomEvent.stopPropagation(e);
                     let html = `<div style="text-align:center; padding: 5px;">
                         <b style="color:#ca8a04; font-size:13px;">DXF Element</b><br>
-                        <b style="font-size:11px; color:#1e3a8a;">Type: ${type}</b><br>
-                        <span style="font-size:11px; color:#64748b;">Layer: ${layerName || 'Unknown'}</span>
+                        <b style="font-size:11px; color:#1e3a8a;">Type: ${window.escHtml(type)}</b><br>
+                        <span style="font-size:11px; color:#64748b;">Layer: ${window.escHtml(layerName || 'Unknown')}</span>
                     </div>`;
                     L.popup().setLatLng(e.latlng).setContent(html).openOn(window.leafletMap);
                 });
@@ -1407,18 +1407,7 @@ window.refreshMapPointLayers = function(n) {
     }, 200);
 };
 
-// ==========================================
-// 🔴 SHARED MAP UNDO FUNCTION
-// ==========================================
-window.handleSharedMapUndo = function() {
-    if (window.isVolDrawing) {
-        if (typeof window.undoVolBoundary === 'function') window.undoVolBoundary();
-    } else if (window.isDrawingBoundary) {
-        if (typeof window.undoManualBoundary === 'function') window.undoManualBoundary();
-    } else if (window.isDrawingExclude) {
-        if (typeof window.undoExcludeBoundary === 'function') window.undoExcludeBoundary();
-    }
-};
+// handleSharedMapUndo ကို module_surface_volume.js ထဲမှာ တစ်နေရာတည်း သတ်မှတ်ထားသည် (ပြန်ထပ်မရေးရန်)
 // ==========================================
 // --- PLOT POINTS ON MAP (SO & TOPO) ---
 // ==========================================
@@ -1722,9 +1711,21 @@ window.profInvalidateResults = function() {
 window.profAutoDatum = function() {
     let el = document.getElementById('prof_datum_z');
     if (!el) return;
+    if (el.dataset.auto === '0' && el.value !== '') return;     // user ကိုယ်တိုင်ရိုက်ထားလျှင် မထိ
     let pts = window.profCenterlinePts;
     el.value = pts.length > 0 ? Math.floor(Math.min(...pts.map(p => p.groundZ)) - 2) : "";
+    el.dataset.auto = '1';      // Auto value: Calculate က Center + Left + Right profile အားလုံး၏ အနိမ့်ဆုံးကနေ ပြန်တွက်မည်
 };
+(function() {
+    function bindDatumInput() {
+        let el = document.getElementById('prof_datum_z');
+        if (!el || el._autoBound) return;
+        el._autoBound = true;
+        el.addEventListener('input', function() { el.dataset.auto = (el.value === '') ? '1' : '0'; });
+    }
+    bindDatumInput();
+    document.addEventListener('DOMContentLoaded', bindDatumInput);
+})();
 
 // Draw/Edit ခလုတ်၊ Calculate ခလုတ်၊ status စာကြောင်း တို့ကို အခြေအနေအလိုက် ပြောင်းသည်
 window.profRefreshControls = function() {
@@ -2192,6 +2193,7 @@ window.profSnapshotSettings = function() {
         let el = document.getElementById(id);
         if (!el) return;
         s[id] = (el.type === 'checkbox') ? el.checked : el.value;
+        if (id === 'prof_datum_z') s.prof_datum_auto = (el.dataset.auto === '0') ? '0' : '1';
     });
     return s;
 };
@@ -2202,6 +2204,7 @@ window.profApplySettings = function(s) {
         let el = document.getElementById(id);
         if (!el || s[id] === undefined) return;
         if (el.type === 'checkbox') el.checked = !!s[id]; else el.value = s[id];
+        if (id === 'prof_datum_z') el.dataset.auto = (s[id] === '' || s[id] === null) ? '1' : (s.prof_datum_auto !== undefined ? s.prof_datum_auto : '1');
     });
     if (typeof window.updatePfCsSummary === 'function') window.updatePfCsSummary();
     window.profRefreshSummaries();
@@ -2278,7 +2281,7 @@ window.profSaveAlignment = function() {
     let savedName = existing ? existing.name : window.profAlignments[window.profAlignments.length - 1].name;
     window.profNewAlignment(true);
     let sum = document.getElementById('prof_summary'), box = document.getElementById('prof_status_box');
-    if (box && sum) { box.classList.remove('hidden'); sum.innerHTML = `<div style="font-size:14px; font-weight:bold; color:#047857;">✅ ${savedName} saved</div>Draw the next alignment, or Export all.`; }
+    if (box && sum) { box.classList.remove('hidden'); sum.innerHTML = `<div style="font-size:14px; font-weight:bold; color:#047857;">✅ ${window.escHtml(savedName)} saved</div>Draw the next alignment, or Export all.`; }
 };
 
 window.profEditAlignment = function(id) {
@@ -2496,12 +2499,4 @@ window.registerDrawBar({ name: 'prof', tool: 'prof', persistent: true, fn: funct
     ]};
 }});
 
-// Shared Undo ခလုတ်နှိပ်ရင် အလုပ်လုပ်အောင် Hook ဝင်ထည့်ခြင်း
-let _oldHandleSharedMapUndoProf = window.handleSharedMapUndo;
-window.handleSharedMapUndo = function() {
-    if (window.isProfDrawing) {
-        window.undoProfCenterline();
-    } else if (typeof _oldHandleSharedMapUndoProf === 'function') {
-        _oldHandleSharedMapUndoProf();
-    }
-};
+// (Profile undo ကိုလည်း module_surface_volume.js ထဲက handleSharedMapUndo က ကိုင်ပြီးသား)
