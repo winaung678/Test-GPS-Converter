@@ -806,6 +806,24 @@ window.initMap = function() {
         L.popup().setLatLng([finalLat, finalLon]).setContent(popupContent).openOn(window.leafletMap);
     });
 };
+// "Waiting for GPS Location..." + အခြေအနေအလိုက် အကြောင်းရင်း/ဖြေရှင်းနည်း
+window.showGpsWaitingAlert = function() {
+    let base = "Waiting for GPS Location...";
+    let show = function(extra) { alert(base + (extra ? "\n\n" + extra : "")); };
+    // (၁) GPS ခလုတ် မဖွင့်ရသေး
+    if (!window.isNativeGPSActive) {
+        return show("⚠️ GPS is OFF. Tap the \"🛰️ GPS: OFF\" button to turn it on, and make sure Location is enabled on your device.");
+    }
+    // (၂) GPS ခလုတ် ON ဖြစ်နေပြီး location မရသေး
+    let hint = "⚠️ GPS is ON but no location has been received yet. Make sure Location/GPS is enabled on your device, allow the Location permission for this page, and move to an open-sky area.";
+    if (typeof window.AndroidNative === 'undefined' && navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' }).then(function(r) {
+            if (r.state === 'denied') hint = "⚠️ Location permission is BLOCKED for this page. Click the icon beside the address bar \u2192 Location \u2192 Allow, then reload and try again.";
+            else if (r.state === 'prompt') hint = "⚠️ Location permission has not been granted yet. Press Allow when the browser asks for Location.";
+            show(hint);
+        }).catch(function() { show(hint); });
+    } else { show(hint); }
+};
 window.toggleAutoCenter = function() {
     window.isAutoCenter = !window.isAutoCenter;
     let btn = document.getElementById('autoCenterBtn');
@@ -813,7 +831,7 @@ window.toggleAutoCenter = function() {
         btn.classList.add('active');
         if (window.currentLat !== 0) {
             window.leafletMap.setView([window.currentLat, window.currentLon], 21);
-        } else { alert("Waiting for GPS Location..."); }
+        } else { window.showGpsWaitingAlert(); }
     } else {
         btn.classList.remove('active');
     }

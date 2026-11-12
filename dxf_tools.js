@@ -146,6 +146,40 @@ window.dxfClosedPolyE = function(layer, pts) {
 //  bbox = ပုံ (plan) ၏ အကျယ်အဝန်း (မီတာ)
 //  စာရွက်ပေါ်: ဘောင်အတွင်းအနား ၁၀ mm၊ ပုံနှင့် အနား ၅ mm၊ အောက်ဘက် ၂၅ mm ကို scale bar နေရာအဖြစ် ချန်
 //  Auto = အလျားလိုက်/ထောင်လိုက် နှစ်မျိုးထဲက ပိုသေးသော scale နှင့် ဆန့်သည့်ဘက်၊ စံ scale ထဲက အနီးဆုံး
+// ---------- စာရွက်များခွဲ (multi-sheet tiling) ----------
+// Plot scale ကို ကိုယ်တိုင်သတ်မှတ်ထားပြီး ပုံက A3/A4 တစ်ရွက်ထဲ မဆန့်လျှင် စာရွက်ဘောင်များကို grid ပုံစံ ဆက်ဆွဲ
+// overlap = ကပ်လျက်ဘောင်နှစ်ခု ထပ်မည့် အကျယ် (mm)၊ edge = ပုံနှင့် ဘောင်အနား (mm)၊ reserve = အောက်ဘက် scale bar နေရာ (mm)
+window.DXF_TILE = { overlap: 10, edge: 15, reserve: 25, maxSheets: 64 };
+window.dxfTileLayout = function(bbox, scale, P) {
+    let T = window.DXF_TILE, ui = window.dxfOpts, ov = T.overlap;
+    let W = Math.max(bbox.maxX - bbox.minX, 0.001), H = Math.max(bbox.maxY - bbox.minY, 0.001);
+    let Wp = W * 1000 / scale, Hp = H * 1000 / scale;                 // စာရွက်ပေါ်ရှိ ပုံအရွယ် (mm)
+    // တစ်ရွက်ထဲ ဆန့်လျှင် မခွဲ (မူလ single-frame logic ကိုသုံး)
+    let single = [[P[0], P[1]], [P[1], P[0]]].some(function(d) { return Wp <= d[0] - 30 + 1e-9 && Hp <= d[1] - 55 + 1e-9; });
+    if (single) return null;
+    let cands = [{ name: 'landscape', pw: P[0], ph: P[1] }, { name: 'portrait', pw: P[1], ph: P[0] }];
+    cands.forEach(function(o) {
+        o.cols = Math.max(1, Math.ceil((Wp + 2 * T.edge - ov) / (o.pw - ov) - 1e-9));
+        o.rows = Math.max(1, Math.ceil((Hp + 2 * T.edge + T.reserve - ov) / (o.ph - ov) - 1e-9));
+        o.n = o.cols * o.rows;
+    });
+    let best = cands[0].n < cands[1].n ? cands[0] : (cands[1].n < cands[0].n ? cands[1] : (W >= H ? cands[0] : cands[1]));
+    if (best.n > T.maxSheets) return { tooMany: best.n };
+    let k = scale / 1000;
+    let Gw = (best.cols * best.pw - (best.cols - 1) * ov) * k, Gh = (best.rows * best.ph - (best.rows - 1) * ov) * k;
+    let cx = (bbox.minX + bbox.maxX) / 2, cy = ((bbox.minY - T.reserve * k) + bbox.maxY) / 2;
+    let grid = { minX: cx - Gw / 2, minY: cy - Gh / 2, maxX: cx + Gw / 2, maxY: cy + Gh / 2 };
+    let tiles = [];
+    for (let i = 0; i < best.rows; i++) {
+        for (let j = 0; j < best.cols; j++) {
+            let x0 = grid.minX + j * (best.pw - ov) * k, y1 = grid.maxY - i * (best.ph - ov) * k;
+            tiles.push({ no: i * best.cols + j + 1, row: i + 1, col: j + 1, frame: { minX: x0, minY: y1 - best.ph * k, maxX: x0 + best.pw * k, maxY: y1 } });
+        }
+    }
+    return { tiled: true, scale: scale, paper: ui.paper, orient: best.name, cols: best.cols, rows: best.rows, pw: best.pw, ph: best.ph, ov: ov,
+             tiles: tiles, grid: grid, frame: grid, inner: grid, bbox: bbox, k: k, barX: grid.minX + 20 * k, barY: grid.minY + 22 * k };
+};
+
 window.dxfPlanLayout = function(bbox) {
     let ui = window.dxfOpts, P = window.DXF_PAPER[ui.paper] || window.DXF_PAPER.A3;
     let W = Math.max(bbox.maxX - bbox.minX, 0.001), H = Math.max(bbox.maxY - bbox.minY, 0.001);
@@ -163,13 +197,19 @@ window.dxfPlanLayout = function(bbox) {
         scale = list[list.length - 1];
         for (let i = 0; i < list.length; i++) { if (list[i] >= need) { scale = list[i]; break; } }
     }
+    let tooMany = 0;
+    if (ui.scale !== 'auto' && Number(ui.scale) > 0) {
+        let tl = window.dxfTileLayout(bbox, scale, P);        // တစ်ရွက်မဆန့်လျှင် စာရွက်များခွဲ
+        if (tl && tl.tiled) return tl;
+        if (tl && tl.tooMany) tooMany = tl.tooMany;           // အရမ်းများလွန်း → တစ်ဘောင်ထဲ + သတိပေး
+    }
     let k = scale / 1000;                                         // စာရွက် ၁ mm = မော်ဒယ် k မီတာ
     let Fw = best.pw * k, Fh = best.ph * k, reserve = 25 * k;
     let cx = (bbox.minX + bbox.maxX) / 2, cy = ((bbox.minY - reserve) + bbox.maxY) / 2;
     let frame = { minX: cx - Fw / 2, minY: cy - Fh / 2, maxX: cx + Fw / 2, maxY: cy + Fh / 2 };
     let inner = { minX: frame.minX + 10 * k, minY: frame.minY + 10 * k, maxX: frame.maxX - 10 * k, maxY: frame.maxY - 10 * k };
     return { scale: scale, paper: ui.paper, orient: best.name, frame: frame, inner: inner, bbox: bbox, k: k,
-             barX: inner.minX + 10 * k, barY: inner.minY + 12 * k };
+             barX: inner.minX + 10 * k, barY: inner.minY + 12 * k, tooMany: tooMany };
 };
 
 // ---------- Bounding box (entity အလိုက်ဖတ် - POLYLINE ခေါင်းစီးထဲက အတု (0,0) ကို ကျော်) ----------
@@ -254,12 +294,44 @@ window._dxfPostProcess = function(dxf, o) {
     let extra = [], newLayers = [];
     let ext = { minX: bb.minX, minY: bb.minY, maxX: bb.maxX, maxY: bb.maxY };
     const grow = function(x1, y1, x2, y2) { ext.minX = Math.min(ext.minX, x1); ext.minY = Math.min(ext.minY, y1); ext.maxX = Math.max(ext.maxX, x2); ext.maxY = Math.max(ext.maxY, y2); };
-    if (wantFrame) {
+    if (wantFrame && lay.tiled) {
+        // ===== စာရွက်များခွဲ: ဘောင်တစ်ခုချင်း + စာရွက်နံပါတ် + ကပ်လျက်ဘောင်ကြား Match line =====
+        newLayers.push({ name: 'PLOT_FRAME', color: 1 });
+        newLayers.push({ name: 'PLOT_MATCH', color: 3 });
+        let sh = lay.tiles, g = lay.grid, ov = lay.ov, nS = sh.length;
+        sh.forEach(function(s) {
+            let f = s.frame;
+            extra.push(window.dxfClosedPolyE('PLOT_FRAME', [[f.minX, f.minY], [f.maxX, f.minY], [f.maxX, f.maxY], [f.minX, f.maxY]]));
+            let lbl = 'SHEET ' + s.no + ' / ' + nS + '   ' + lay.paper + '   SCALE 1:' + scale, th = 3 * k;
+            // ကပ်လျက်ဘောင်နှင့် မထပ်သော ဘောင်အတွင်း ၁၄ mm အတွင်းနေရာတွင် ထား (တစ်ရွက်ချင်း ပရင့်လျှင် အဲ့ရွက်ရဲ့ နံပါတ်ပဲပါ)
+            extra.push(window.dxfTextE('PLOT_FRAME', f.minX + 14 * k + lbl.length * th * 0.4, f.maxY - 14 * k, th, lbl, 0));
+        });
+        for (let j = 1; j < lay.cols; j++) {                       // ဒေါင်လိုက် match line
+            let x = g.minX + (j * (lay.pw - ov) + ov / 2) * k;
+            for (let i = 0; i < lay.rows; i++) {
+                let a = sh[i * lay.cols + j - 1], b = sh[i * lay.cols + j];
+                let y1 = a.frame.minY + (i < lay.rows - 1 ? ov * k : 0), y2 = a.frame.maxY;
+                extra.push(window.dxfLineE('PLOT_MATCH', x, y1, x, y2));
+                extra.push(window.dxfTextE('PLOT_MATCH', x - 2 * k, (y1 + y2) / 2, 2.5 * k, 'MATCH LINE  -  SHEET ' + a.no + ' | SHEET ' + b.no, 90));
+            }
+        }
+        for (let i = 1; i < lay.rows; i++) {                       // အလျားလိုက် match line
+            let y = g.maxY - (i * (lay.ph - ov) + ov / 2) * k;
+            for (let j = 0; j < lay.cols; j++) {
+                let a = sh[(i - 1) * lay.cols + j], b = sh[i * lay.cols + j];
+                let x1 = a.frame.minX + (j > 0 ? ov * k : 0), x2 = a.frame.maxX;
+                extra.push(window.dxfLineE('PLOT_MATCH', x1, y, x2, y));
+                extra.push(window.dxfTextE('PLOT_MATCH', (x1 + x2) / 2, y + 2 * k, 2.5 * k, 'MATCH LINE  -  SHEET ' + a.no + ' / SHEET ' + b.no, 0));
+            }
+        }
+        extra.push(window.dxfTextE('PLOT_FRAME', (g.minX + g.maxX) / 2, g.maxY + 6 * k, 4 * k, nS + ' SHEETS (' + lay.cols + ' x ' + lay.rows + ')  ' + lay.paper + ' ' + lay.orient + '  -  PLOT SCALE 1:' + scale + '  (window-select each sheet frame; match lines = overlap)', 0));
+        grow(g.minX, g.minY, g.maxX, g.maxY + 10 * k);
+    } else if (wantFrame) {
         newLayers.push({ name: 'PLOT_FRAME', color: 1 });
         let f = lay.frame, i = lay.inner;     // inner = ဘောင်အတွင်း ချန်ထားသော အလွတ်နေရာ (မဆွဲ)၊ fit စစ်ရန်သာ
         extra.push(window.dxfClosedPolyE('PLOT_FRAME', [[f.minX, f.minY], [f.maxX, f.minY], [f.maxX, f.maxY], [f.minX, f.maxY]]));
         let b = lay.bbox, fits = b.minX >= i.minX - 1e-6 && b.maxX <= i.maxX + 1e-6 && b.minY >= i.minY - 1e-6 && b.maxY <= i.maxY + 1e-6;
-        extra.push(window.dxfTextE('PLOT_FRAME', (f.minX + f.maxX) / 2, f.maxY + 6 * k, 4 * k, lay.paper + ' ' + lay.orient + '  -  PLOT SCALE 1:' + scale + (fits ? '  (window-select this frame)' : '  -  WARNING: drawing is larger than this frame - choose Auto or a larger scale number'), 0));
+        extra.push(window.dxfTextE('PLOT_FRAME', (f.minX + f.maxX) / 2, f.maxY + 6 * k, 4 * k, lay.paper + ' ' + lay.orient + '  -  PLOT SCALE 1:' + scale + (fits ? '  (window-select this frame)' : '  -  WARNING: drawing is larger than this frame' + (lay.tooMany ? ' (needs ' + lay.tooMany + ' sheets - too many)' : '') + ' - choose Auto or a larger scale number'), 0));
         grow(f.minX, f.minY, f.maxX, f.maxY + 10 * k);
     }
     if (wantBar) {

@@ -299,8 +299,8 @@ select:disabled{opacity:0.6;background:#e2e8f0;cursor:not-allowed;}
 .chk-row input.num-sm{width:64px;height:28px;margin:0;padding:2px 4px;text-align:center;font-size:12px;}
 
 /* ---- Compact Leaflet popups ---- */
-.leaflet-popup-content-wrapper { border-radius: 8px; padding: 0; }
-.leaflet-popup-content { margin: 10px 22px 10px 10px; line-height: 1.3; font-size: 12px; }
+.leaflet-popup-content-wrapper { border-radius: 8px; padding: 1px 0; }   /* padding>0 = content ၏ အပေါ်/အောက် margin မထွက်ပျောက် (margin collapse) */
+.leaflet-popup-content { margin: 9px 22px 12px 12px; line-height: 1.3; font-size: 12px; }
 .leaflet-popup-content hr { margin: 3px 0 !important; }
 .leaflet-popup-content .so-popup-btn { padding: 4px 10px !important; font-size: 11px !important; margin-top: 3px; border-radius: 5px; }
 .leaflet-container a.leaflet-popup-close-button { top: 1px; right: 1px; width: 20px; height: 20px; font: 16px/20px Tahoma, Verdana, sans-serif; }
@@ -308,3 +308,8 @@ select:disabled{opacity:0.6;background:#e2e8f0;cursor:not-allowed;}
 .leaflet-popup-tip-container { width: 30px; height: 15px; margin-left: -15px; }
 .leaflet-popup { margin-bottom: 14px; }
 .dxf-opt-scale-custom { width: 78px; height: 26px; margin: 0; padding: 2px 4px; font-size: 11px; }
+
+/* Chrome focus ring (contour/line ကိုနှိပ်လျှင် လေးထောင့်ဘောင်ကြီးပေါ်တတ်) ကို map layer များတွင် ပိတ် */
+.leaflet-container path.leaflet-interactive:focus,
+.leaflet-container svg:focus,
+.leaflet-container .leaflet-interactive:focus { outline: none; }

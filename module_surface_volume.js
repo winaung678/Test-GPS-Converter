@@ -1,3 +1,4 @@
+console.info('[build] module_surface_volume: PF-curve-row fix 2026-11-12');
 // ==========================================
 // --- TOPO SURFACE & CONTOURS LOGIC ---
 // ==========================================
@@ -2199,14 +2200,23 @@ let gridTxtH = Math.max(2.5, interval * 0.12);
         dxf += `0\nTEXT\n8\nVOL_BOUNDARY\n10\n${cE}\n20\n${cN}\n30\n0.0\n40\n${gridTxtH}\n1\nVol BDY ${item.result.areaIndex}\n72\n1\n11\n${cE}\n21\n${cN}\n31\n0.0\n73\n2\n`;
     });
 
-    let tX = arrE + w + (gridTxtH * 4);   // 🔴 Report table ကို North arrow နဲ့ မထပ်အောင် ညာဘက်ရွှေ့
-    let tY = gridMaxN; 
-    
-    let cols = [8.0, 16.0, 14.0, 16.0, 16.0, 18.0, 20.0, 20.0, 26.0]; 
+    // ===== Plan ၏ Plot scale / စာရွက်ဘောင် (Topo/PF DXF နှင့်တူ) - Report table ကို ဘောင်ထဲ မထည့်ဘဲ ဘောင်ဘေး (ညာဘက်) တွင်ထား =====
+    // ဘောင်ထဲဝင်မည့် အရာ = grid + E/N စာ + title + north arrow ဖြစ်၍ ၎င်းတို့ကိုသာ plan bbox အဖြစ်တွက်
+    const _volBBox = { minX: gridMinE - gridTxtH * 9, maxX: Math.max(gridMaxE + gridTxtH * 14, arrE + w + gridTxtH * 2), minY: gridMinN - gridTxtH * 9, maxY: gridMaxN + gridTxtH * 13 };
+    const _volLayout = window.dxfPlanLayout(_volBBox);
+    const _volFr = _volLayout.frame;
+    const _volFrameOn = !!window.dxfOpts.frame;
+    // Table ၏ စာအမြင့်ကို စာရွက်ပေါ် ~2mm ဖြစ်စေရန် plot scale အလိုက်တွက် (ဘောင်ကြီး/သေး scale ပြောင်းလည်း စာရွက်ပေါ် အရွယ်တူ)
+    let tblTxtH = 2.0 * _volLayout.k;
+    let _tblScale = tblTxtH / 1.5;                       // မူလ (စာအမြင့် 1.5) အတွက် ဒီဇိုင်းထားသော column အကျယ်ကို အချိုးကျ ချဲ့/ချုံ့
+    let cols = [8.0, 16.0, 14.0, 16.0, 16.0, 18.0, 20.0, 20.0, 26.0].map(cw => cw * _tblScale);
     let tW = cols.reduce((a, b) => a + b, 0);
-    
-    let tblTxtH = 1.5; 
-    let rowH = tblTxtH * 3.5; 
+    let rowH = tblTxtH * 3.5;
+    // ဘောင်နှင့် ကွာမည့် နေရာ = ဘောင်အကျယ်၏ ၃% သို့မဟုတ် စာရွက် ၂၀mm (ပိုကြီးတာ)
+    let _volGap = _volFrameOn ? Math.max(_volLayout.scale * 0.02, (_volFr.maxX - _volFr.minX) * 0.03) : gridTxtH * 4;
+    let tX = (_volFrameOn ? _volFr.maxX : _volBBox.maxX) + _volGap;
+    let tY = (_volFrameOn ? _volFr.maxY : _volBBox.maxY) - rowH * 3;    // ခေါင်းစဉ် ၂ ကြောင်းအတွက် နေရာချန်ပြီး ဘောင်ထိပ်နှင့် တန်းစီ
+
     let numRows = window.latestVolResultsArray.length + 2; 
 
     dxf += `0\nTEXT\n8\nREPORT_TABLE\n62\n3\n10\n${tX + tW/2}\n20\n${tY + (rowH * 2)}\n30\n0.0\n40\n${tblTxtH * 1.5}\n1\nEARTHWORK VOLUME REPORT\n72\n1\n11\n${tX + tW/2}\n21\n${tY + (rowH * 2)}\n31\n0.0\n73\n2\n`;
@@ -2274,7 +2284,7 @@ let gridTxtH = Math.max(2.5, interval * 0.12);
     writeCell(lastRow, 8, Math.abs(grandNet).toFixed(3) + (grandNet >= 0 ? " (Cut)" : " (Fill)"), 2);
 
     dxf += "0\nENDSEC\n0\nEOF\n";
-    dxf = window.dxfPostProcess(dxf, {});
+    dxf = window.dxfPostProcess(dxf, { layout: _volLayout });   // ဘောင်ကို Plan (grid) အတွက်သာ ဆွဲ - Report table ကို မဝိုင်း
 
     let fileName = `Earthwork_Volume_Report_${new Date().getTime()}.dxf`;
     if (window.AndroidNative && window.AndroidNative.downloadConvertedCSV) { 
@@ -3049,7 +3059,13 @@ window.exportProfileDXF = function() {
     // Grid label (လှည့်ထားသော E/N စာ)၊ Title၊ North arrow တို့ ဘောင်မကျော်စေရန် ၎င်းတို့၏ နေရာကိုပါ ထည့်တွက်
     const _planBBox = { minX: minE - topoGridInt - planGridTxtH * 9, maxX: maxE + topoGridInt + planGridTxtH * 14, minY: minN - topoGridInt - planGridTxtH * 9, maxY: maxN + topoGridInt + planGridTxtH * 13 };
     const _layout = window.dxfPlanLayout(_planBBox);
-    if (window.dxfOpts.frame) pOriginX = Math.max(pOriginX, _layout.frame.maxX + _layout.scale * 0.02);
+    // PF table ၏ ဘယ်ဘက် header column (hdrW = txtH*12) က origin ၏ ဘယ်ဘက်သို့ ထွက်နေသဖြင့် ၎င်းကိုပါ ထည့်တွက်
+    // ဘောင်နှင့်ကွာမည့် နေရာ = ဘောင်အကျယ်ပေါ်မူတည် (စာရွက် ၂၀mm နှင့် ဘောင်အကျယ် ၃% ထဲက ပိုကြီးတာ) → ဘောင်ကြီး/သေး သင့်တော်
+    const _pfLeftExt = txtH * 14;
+    const _fr = _layout.frame;
+    const _planRight = window.dxfOpts.frame ? _fr.maxX : _planBBox.maxX;
+    const _planGap = window.dxfOpts.frame ? Math.max(_layout.scale * 0.02, (_fr.maxX - _fr.minX) * 0.03) : planGridTxtH * 2;
+    pOriginX = Math.max(pOriginX, _planRight + _planGap + _pfLeftExt);
 
     dxf.push("0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n24");
     dxf.push("0\nLAYER\n2\nTOPO_POINTS\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_POINT_NO\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_POINT_CODES\n70\n0\n62\n3\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_MAJOR_CONTOUR\n70\n0\n62\n2\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_MINOR_CONTOUR\n70\n0\n62\n8\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_LABELS\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nTOPO_BOUNDARY\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nMAP_GRID\n70\n0\n62\n8\n6\nCONTINUOUS\n0\nLAYER\n2\nMAP_TEXT\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nNORTH_ARROW\n70\n0\n62\n7\n6\nCONTINUOUS");
@@ -3335,15 +3351,19 @@ window.exportProfileDXF = function() {
         // --- Curve Elements row: ဖြောင့် / curve အပိုင်းအလိုက် ---
         let runs = [];
         let _prevSt = null;
-        profilePts.forEach(st => {
+        profilePts.forEach((st, si) => {
             let key = st.isCurve && st.curveCenter ? `C${st.curveCenter.n.toFixed(3)},${st.curveCenter.e.toFixed(3)}` : 'S';
             let last = runs[runs.length - 1];
-            if (last && last.key === key) last.end = st.ch;
+            // ဖြောင့်နှစ်ခုကြား ချိုးထောင့် (alignment node) မှာလည်း အပိုင်းခွဲ - Station row ရှိ CH မျဉ်းနှင့် တည့်စေရန်
+            let bendSplit = !!(last && last.key === 'S' && key === 'S' && st.isStartEnd && si < profilePts.length - 1 && st.ch - last.start > 0.01);
+            if (last && last.key === key && !bendSplit) last.end = st.ch;
             else {
-                // ဖြောင့်/curve ကူးပြောင်းရာ နေရာ = ဖြောင့်အပိုင်း၏ အဆုံး/အစ vertex (PC/PT) ရှိရာ CH
-                // (curve ထဲက ပထမဆုံး chord point မဟုတ်) - ဒါမှ Station မျဉ်းနှင့် တည့်မည်
+                // ကူးပြောင်းရာ CH = အမှန်တကယ် PC/PT/ချိုးထောင့် vertex ၏ CH
+                //  - ဖြောင့် → curve : curve ၏ ပထမဆုံး point (PC vertex) = st.ch
+                //  - curve → ဖြောင့်/curve : curve ၏ နောက်ဆုံး point (PT vertex) = _prevSt.ch
+                // (vertex point များကို station merge လုပ်ချိန် curve အဖြစ် flag ပေးထားပြီးသားမို့ ဖြောင့်ဘက် sample ကို မယူရ)
                 let bch = st.ch;
-                if (last) bch = (last.key === 'S') ? _prevSt.ch : (key === 'S' ? st.ch : _prevSt.ch);
+                if (last && !bendSplit && last.key !== 'S') bch = _prevSt.ch;
                 if (last) last.end = bch;
                 runs.push({ key: key, start: bch, end: st.ch, st: st });
             }

@@ -20,7 +20,9 @@ class WebGeoidReader {
     async loadData() {
         try {
             let response = await fetch(this.url);
+            if (!response.ok) throw new Error('HTTP ' + response.status);      // 404 စာမျက်နှာကို geoid ဒေတာအဖြစ် မဖတ်စေရန်
             let buffer = await response.arrayBuffer();
+            if (buffer.byteLength < this.rows * this.cols * 4) throw new Error('Geoid file too small / incomplete');
             let dataView = new DataView(buffer);
             this.gridData = new Float32Array(buffer.byteLength / 4);
             for (let i = 0; i < this.gridData.length; i++) {
