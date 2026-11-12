@@ -79,6 +79,7 @@ window.lastBeepTime = 0;
 window.dxfLineLayer = null;
 window.dxfTextLayer = null;
 window.rawDxfEntities = [];
+window.rawDxfBlocks = {};
 window.dxfLayerTable = {};
 window.currentDxfTextSize = 14;
 window.dxfCancelFlag = false;

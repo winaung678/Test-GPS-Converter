@@ -855,19 +855,16 @@ window.handleDXFUpload = function(event) {
         try {
             const parser = new window.DxfParser(); const dxfData = parser.parseSync(e.target.result);
             window.rawDxfEntities = dxfData.entities || [];
+            window.rawDxfBlocks = dxfData.blocks || {};                      // INSERT/DIMENSION ချဲ့ရန် block ဖွဲ့စည်းပုံ
             window.dxfLayerTable = {};
             if(dxfData.tables && dxfData.tables.layer && dxfData.tables.layer.layers) {
                 let layers = dxfData.tables.layer.layers;
-                for (let key in layers) {
-                    let cNum = layers[key].colorNumber;
-                    if (cNum === undefined) cNum = layers[key].color;
-                    window.dxfLayerTable[key.toUpperCase()] = cNum;
-                }
+                for (let key in layers) { window.dxfLayerTable[key.toUpperCase()] = window.dxfParseLayerEntry(layers[key]); }
             }
 
             if (window.mapDB) {
                 let tx = window.mapDB.transaction("dxf_data", "readwrite");
-                tx.objectStore("dxf_data").put({entities: window.rawDxfEntities, layerTable: window.dxfLayerTable}, "saved_dxf");
+                tx.objectStore("dxf_data").put({entities: window.rawDxfEntities, layerTable: window.dxfLayerTable, blocks: window.rawDxfBlocks}, "saved_dxf");
             }
 
             document.getElementById('dxf_status').innerText = `⚙️ Processing ${window.rawDxfEntities.length} entities...`;
@@ -886,6 +883,7 @@ window.loadSavedDXF = function() {
         if (e.target.result) {
             let data = e.target.result;
             window.rawDxfEntities = data.entities || [];
+            window.rawDxfBlocks = data.blocks || {};
             window.dxfLayerTable = data.layerTable || {};
             document.getElementById('dxf_status').innerText = `✅ Loaded saved DXF map.`;
             let exportBtn = document.getElementById('btn_export_kml'); if(exportBtn) exportBtn.style.display = 'block';
@@ -905,6 +903,7 @@ window.clearDXF = function() {
     if (!confirm("Are you sure you want to clear the DXF map?")) return;
     window.dxfCancelFlag = true;
     window.rawDxfEntities = [];
+    window.rawDxfBlocks = {};
     window.dxfLayerTable = {};
     if (window.dxfLineLayer) { window.leafletMap.removeLayer(window.dxfLineLayer); }
     if (window.dxfTextLayer) { window.leafletMap.removeLayer(window.dxfTextLayer); }
@@ -935,16 +934,257 @@ window.clearDXF = function() {
     }
 };
 
-window.aciToHex = function(colorNumber) {
-    const aciPalette = [
-        "#000000", "#FF0000", "#FFFF00", "#00FF00", "#00FFFF", "#0000FF", "#FF00FF", "#FFFFFF",
-        "#414141", "#808080", "#FF0000", "#FFAAAA", "#BD0000", "#BD7E7E", "#810000", "#815656",
-        "#7C0000", "#7C5353", "#4C0000", "#4C3333", "#FF3F00", "#FFBFAA", "#BD2E00", "#BD8D7E",
-        "#7C1F00", "#7C5D53", "#4C1300", "#4C3933", "#FF7F00", "#FFDFAA", "#BD5E00", "#BDA57E"
-    ];
-    if (colorNumber >= 0 && colorNumber < aciPalette.length) return aciPalette[colorNumber];
-    return null;
+// ==== DXF IMPORT HELPERS (BEGIN) ====
+// AutoCAD Color Index (ACI) ၂၅၆ ခုလုံး - 1-9 အခြေခံ၊ 10-249 = hue ၂၄ ခု × (အလင်းအမှောင် ၅ ဆင့် × ရောင်ပြင်း/ပျော့)၊ 250-255 မီးခိုးရောင်
+window._aciCache = null;
+window.aciToHex = function(n) {
+    if (!window._aciCache) {
+        const fixed = ["#000000", "#ff0000", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#ff00ff", "#ffffff", "#414141", "#808080"];
+        const hx = v => ('0' + Math.max(0, Math.min(255, v)).toString(16)).slice(-2);
+        const greys = [51, 92, 132, 173, 214, 255];
+        let t = [];
+        for (let i = 0; i < 256; i++) {
+            if (i < 10) { t.push(fixed[i]); continue; }
+            if (i >= 250) { let g = greys[i - 250]; t.push('#' + hx(g) + hx(g) + hx(g)); continue; }
+            let k = i - 10, hue = Math.floor(k / 10) * 15, w = k % 10;
+            let V = [255, 189, 129, 104, 79][w >> 1], S = (w % 2 === 0) ? 1 : 1 / 3;
+            let C = V * S, h6 = hue / 60, X = C * (1 - Math.abs(h6 % 2 - 1)), m = V - C, r = 0, g = 0, b = 0;
+            switch (Math.floor(h6)) {
+                case 0: r = C; g = X; break;
+                case 1: r = X; g = C; break;
+                case 2: g = C; b = X; break;
+                case 3: g = X; b = C; break;
+                case 4: r = X; b = C; break;
+                default: r = C; b = X; break;
+            }
+            t.push('#' + hx(Math.floor(r + m + 1e-6)) + hx(Math.floor(g + m + 1e-6)) + hx(Math.floor(b + m + 1e-6)));
+        }
+        window._aciCache = t;
+    }
+    if (typeof n !== 'number' || isNaN(n)) return null;
+    n = Math.abs(Math.round(n));
+    return (n >= 0 && n <= 255) ? window._aciCache[n] : null;
 };
+
+window.dxfRgbHex = function(v) { return '#' + ('000000' + (v & 0xFFFFFF).toString(16)).slice(-6); };
+
+// Layer table မှ တစ်ခုချင်း → { c: '#rrggbb' | null, off: true/false }
+window.dxfParseLayerEntry = function(l) {
+    let idx = (typeof l.colorIndex === 'number') ? l.colorIndex : ((typeof l.colorNumber === 'number') ? l.colorNumber : undefined);
+    let c = null, off = false;
+    if (typeof idx === 'number') {
+        if (idx < 0) off = true;                                  // အနုတ်အရောင်နံပါတ် = layer ပိတ်ထား
+        c = (typeof l.color === 'number' && l.color >= 0 && l.color <= 0xFFFFFF && Math.abs(idx) !== 0) ? window.dxfRgbHex(l.color) : window.aciToHex(Math.abs(idx));
+    } else if (typeof l.color === 'number') {
+        c = l.color > 255 ? window.dxfRgbHex(l.color) : window.aciToHex(l.color);
+    }
+    if (l.visible === false || l.frozen === true) off = true;
+    return { c: c, off: off };
+};
+
+window.dxfLayerInfo = function(name) {
+    let v = (window.dxfLayerTable || {})[String(name || '0').toUpperCase()];
+    if (v === undefined || v === null) return { c: null, off: false };
+    if (typeof v === 'number') return { c: window.aciToHex(Math.abs(v)), off: v < 0 };        // အရင် save ထားသော ဟောင်းပုံစံ
+    return v;
+};
+
+// Entity အရောင် = True color > ACI > ByBlock (INSERT အရောင်) > ByLayer
+window.dxfEntityColor = function(ent, L, ctx) {
+    let ci = ent.colorIndex;
+    if (ci === 0) return ctx.color || L.c || '#ffffff';                         // ByBlock
+    if (typeof ent.trueColor === 'number') return window.dxfRgbHex(ent.trueColor);
+    let hasRgb = (typeof ent.color === 'number' && ent.color >= 0 && ent.color <= 0xFFFFFF);
+    if (typeof ci === 'number' && ci !== 256) {
+        if (hasRgb) return window.dxfRgbHex(ent.color);                          // parser ၏ ACI ဇယား သို့မဟုတ် true color (420)
+        let a = window.aciToHex(ci); if (a) return a;
+    } else if (hasRgb && ent.color > 0) {
+        return window.dxfRgbHex(ent.color);                                      // true color (ByLayer ဟု မှတ်ထားသော်လည်း 420 ပါလျှင်)
+    }
+    return L.c || '#ffffff';                                                      // ByLayer
+};
+
+// TEXT/MTEXT ထဲက formatting code များ ဖယ်ပြီး ပုံမှန်စာသာ ထုတ်
+window.dxfCleanText = function(s) {
+    if (s === undefined || s === null) return '';
+    s = String(s);
+    s = s.replace(/\\P/g, ' ').replace(/\\~/g, ' ')
+         .replace(/\\[fFcCHhWwQqTtAa][^;]*;/g, '')
+         .replace(/\\[LlOoKk]/g, '')
+         .replace(/\\S([^;^\/#]*)[\/#^]([^;]*);/g, '$1/$2')
+         .replace(/\\U\+([0-9A-Fa-f]{4})/g, function(m, h) { return String.fromCharCode(parseInt(h, 16)); })
+         .replace(/\\\\/g, '\\').replace(/\\([{}])/g, '$1').replace(/[{}]/g, '')
+         .replace(/%%[dD]/g, '°').replace(/%%[pP]/g, '±').replace(/%%[cC]/g, 'Ø').replace(/%%[uUoO]/g, '').replace(/%%%/g, '%');
+    return s.replace(/\s+/g, ' ').trim();
+};
+
+// Polyline bulge (အကွေ့ arc) : p1→p2 အကြား arc ပေါ်က အမှတ်များ (p1 မပါ၊ p2 ပါ)
+window.dxfBulgePoints = function(p1, p2, bulge) {
+    let dx = p2[0] - p1[0], dy = p2[1] - p1[1], c = Math.hypot(dx, dy);
+    if (c < 1e-12 || Math.abs(bulge) < 1e-9) return [p2];
+    let theta = 4 * Math.atan(bulge);
+    let h = (c / 2) * (1 - bulge * bulge) / (2 * bulge);
+    let cx = (p1[0] + p2[0]) / 2 + h * (-dy / c), cy = (p1[1] + p2[1]) / 2 + h * (dx / c);
+    let r = Math.hypot(p1[0] - cx, p1[1] - cy), a0 = Math.atan2(p1[1] - cy, p1[0] - cx);
+    let n = Math.max(2, Math.ceil(Math.abs(theta) / (5 * Math.PI / 180)));
+    let pts = [];
+    for (let i = 1; i < n; i++) { let a = a0 + theta * i / n; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+    pts.push(p2);
+    return pts;
+};
+
+window.dxfEllipsePoints = function(ent) {
+    let c = ent.center, m = ent.majorAxisEndPoint; if (!c || !m) return [];
+    let ratio = (typeof ent.axisRatio === 'number') ? ent.axisRatio : 1;
+    let a0 = ent.startAngle || 0, a1 = (typeof ent.endAngle === 'number') ? ent.endAngle : 2 * Math.PI;
+    if (a1 <= a0) a1 += 2 * Math.PI;
+    let nx = -m.y * ratio, ny = m.x * ratio, n = Math.max(24, Math.ceil((a1 - a0) / (5 * Math.PI / 180))), pts = [];
+    for (let i = 0; i <= n; i++) { let t = a0 + (a1 - a0) * i / n; pts.push([c.x + m.x * Math.cos(t) + nx * Math.sin(t), c.y + m.y * Math.cos(t) + ny * Math.sin(t)]); }
+    return pts;
+};
+
+// SPLINE : knot/control point ပါလျှင် B-spline (de Boor) ဖြင့်တွက်၊ မပါလျှင် fit/control point များကို ဆက်
+window.dxfSplinePoints = function(ent) {
+    let cp = (ent.controlPoints || []).map(function(p) { return [p.x, p.y]; });
+    let deg = ent.degreeOfSplineCurve || 3, kn = ent.knotValues || [];
+    let w = (ent.weights && ent.weights.length === cp.length) ? ent.weights : null;
+    if (cp.length >= deg + 1 && kn.length === cp.length + deg + 1) {
+        let n = cp.length, t0 = kn[deg], t1 = kn[n], steps = Math.min(Math.max(n * 8, 24), 2000), pts = [];
+        for (let q = 0; q <= steps; q++) {
+            let t = t0 + (t1 - t0) * q / steps, s = deg;
+            while (s < n - 1 && t >= kn[s + 1]) s++;
+            let d = [];
+            for (let j = 0; j <= deg; j++) { let i = s - deg + j, wt = w ? w[i] : 1; d.push([cp[i][0] * wt, cp[i][1] * wt, wt]); }
+            for (let r = 1; r <= deg; r++) {
+                for (let j = deg; j >= r; j--) {
+                    let den = kn[j + 1 + s - r] - kn[j + s - deg], al = den === 0 ? 0 : (t - kn[j + s - deg]) / den;
+                    d[j] = [(1 - al) * d[j - 1][0] + al * d[j][0], (1 - al) * d[j - 1][1] + al * d[j][1], (1 - al) * d[j - 1][2] + al * d[j][2]];
+                }
+            }
+            let wd = d[deg][2] || 1; pts.push([d[deg][0] / wd, d[deg][1] / wd]);
+        }
+        return pts;
+    }
+    let fp = (ent.fitPoints || []).map(function(p) { return [p.x, p.y]; });
+    return fp.length > 1 ? fp : cp;
+};
+
+// Entity တစ်ခု (INSERT/DIMENSION block များကိုပါ recursive ချဲ့၍) out.poly/circle/point/text သို့ ပို့
+// ctx = { m:[a,b,c,d,e,f], depth, color(ByBlock), layer, blocks, budget:{n,hidden,unsup} }
+window.dxfEmitEntity = function(ent, ctx, out) {
+    if (!ent || ctx.depth > 8 || ctx.budget.n <= 0) return;
+    if (ent.visible === false) return;
+    if (ctx.depth === 0 && ent.inPaperSpace) return;                              // Paper space (layout) ထဲက entity များကို မြေပုံပေါ် မဆွဲ
+    let t = ent.type, layerName = ent.layer || '0';
+    if (layerName === '0' && ctx.layer) layerName = ctx.layer;                    // Block ထဲ layer 0 = INSERT ၏ layer
+    let Li = window.dxfLayerInfo(layerName);
+    if (Li.off) { ctx.budget.hidden++; return; }
+    let color = window.dxfEntityColor(ent, Li, ctx), M = ctx.m;
+    const ap = function(x, y) { return [M[0] * x + M[2] * y + M[4], M[1] * x + M[3] * y + M[5]]; };
+    const flip = !!(ent.extrusionDirection && ent.extrusionDirection.z < 0);      // OCS mirror (extrusion z = -1)
+    const P = function(p) { return ap(flip ? -p.x : p.x, p.y); };
+    const rotDeg = Math.atan2(M[1], M[0]) * 180 / Math.PI;
+    const poly = function(pts, closed, type, fill) { ctx.budget.n--; out.poly(pts, closed, color, layerName, type, fill); };
+    switch (t) {
+        case 'LINE': {
+            let v = ent.vertices; if (!v || v.length < 2) break;
+            poly([P(v[0]), P(v[1])], false, 'Line'); break;
+        }
+        case 'POLYLINE': case 'LWPOLYLINE': case 'LEADER': {
+            let vs = ent.vertices || []; if (vs.length < 2) break;
+            let closed = ent.shape === true || ent.closed === true;
+            let raw = vs.map(function(v) { return [flip ? -v.x : v.x, v.y]; });
+            let rp = [raw[0]], segs = closed ? vs.length : vs.length - 1;
+            for (let i = 0; i < segs; i++) {
+                let b = vs[i].bulge || 0; if (flip) b = -b;
+                let p2 = raw[(i + 1) % vs.length];
+                if (b) { let a = window.dxfBulgePoints(raw[i], p2, b); for (let j = 0; j < a.length; j++) rp.push(a[j]); } else rp.push(p2);
+            }
+            poly(rp.map(function(q) { return ap(q[0], q[1]); }), false, t === 'LEADER' ? 'Leader' : 'Polyline'); break;
+        }
+        case 'CIRCLE': {
+            if (!ent.center) break;
+            let cx = flip ? -ent.center.x : ent.center.x, cy = ent.center.y, r = ent.radius;
+            let sx = Math.hypot(M[0], M[1]), sy = Math.hypot(M[2], M[3]);
+            if (Math.abs(sx - sy) < 1e-6 * Math.max(sx, sy, 1e-12) && Math.abs(M[0] * M[2] + M[1] * M[3]) < 1e-6 * sx * sy) {
+                let q = ap(cx, cy); ctx.budget.n--; out.circle(q[0], q[1], r * sx, color, layerName);
+            } else {
+                let pts = []; for (let i = 0; i <= 72; i++) { let a = i * Math.PI / 36; pts.push(ap(cx + r * Math.cos(a), cy + r * Math.sin(a))); }
+                poly(pts, false, 'Circle');
+            }
+            break;
+        }
+        case 'ARC': {
+            if (!ent.center) break;
+            let cx = flip ? -ent.center.x : ent.center.x, cy = ent.center.y, r = ent.radius, a0 = ent.startAngle, a1 = ent.endAngle;
+            if (flip) { let s0 = Math.PI - a1, s1 = Math.PI - a0; a0 = s0; a1 = s1; }
+            if (a1 <= a0) a1 += 2 * Math.PI;
+            let n = Math.max(4, Math.ceil((a1 - a0) / (5 * Math.PI / 180))), pts = [];
+            for (let i = 0; i <= n; i++) { let a = a0 + (a1 - a0) * i / n; pts.push(ap(cx + r * Math.cos(a), cy + r * Math.sin(a))); }
+            poly(pts, false, 'Arc'); break;
+        }
+        case 'ELLIPSE': {
+            let pts = window.dxfEllipsePoints(ent); if (pts.length > 1) poly(pts.map(function(q) { return ap(q[0], q[1]); }), false, 'Ellipse'); break;
+        }
+        case 'SPLINE': {
+            let pts = window.dxfSplinePoints(ent); if (pts.length > 1) poly(pts.map(function(q) { return ap(q[0], q[1]); }), false, 'Spline'); break;
+        }
+        case 'SOLID': case 'TRACE': case '3DFACE': {
+            let pp = ent.points || ent.vertices || []; if (pp.length < 3) break;
+            let q = pp.map(function(p) { return P(p); });
+            if (t !== '3DFACE' && q.length === 4) q = [q[0], q[1], q[3], q[2]];             // SOLID ၏ အမှတ်စဉ် 1,2,4,3
+            poly(q, true, t === '3DFACE' ? '3D Face' : 'Solid', t !== '3DFACE'); break;
+        }
+        case 'POINT': {
+            let pp = ent.position || ent; if (typeof pp.x !== 'number') break;
+            let q = P(pp); ctx.budget.n--; out.point(q[0], q[1], color, layerName); break;
+        }
+        case 'TEXT': {
+            let sp = ent.startPoint || ent.position; if (!sp) break;
+            let align = 'left', pnt = sp;
+            if (ent.halign === 1 || ent.halign === 4) { align = 'center'; if (ent.endPoint) pnt = ent.endPoint; }
+            else if (ent.halign === 2) { align = 'right'; if (ent.endPoint) pnt = ent.endPoint; }
+            let q = P(pnt); ctx.budget.n--;
+            out.text(q[0], q[1], window.dxfCleanText(ent.text), color, align, (ent.rotation || 0) + rotDeg, layerName); break;
+        }
+        case 'MTEXT': {
+            let pos = ent.position || ent.startPoint; if (!pos) break;
+            let ap9 = ent.attachmentPoint || 1, align = [2, 5, 8].includes(ap9) ? 'center' : ([3, 6, 9].includes(ap9) ? 'right' : 'left');
+            let rot = (typeof ent.rotation === 'number') ? ent.rotation : (ent.directionVector ? Math.atan2(ent.directionVector.y, ent.directionVector.x) * 180 / Math.PI : 0);
+            let q = P(pos); ctx.budget.n--;
+            out.text(q[0], q[1], window.dxfCleanText(ent.text), color, align, rot + rotDeg, layerName); break;
+        }
+        case 'INSERT': case 'DIMENSION': {
+            let name = (t === 'INSERT') ? ent.name : ent.block;
+            let blk = ctx.blocks && name ? ctx.blocks[name] : null;
+            if (!blk || !blk.entities) { if (t === 'INSERT') ctx.budget.unsup['INSERT(no block)'] = (ctx.budget.unsup['INSERT(no block)'] || 0) + 1; break; }
+            let base = blk.position || blk.basePoint || { x: 0, y: 0 };
+            let childCtx = { depth: ctx.depth + 1, color: color, layer: layerName, blocks: ctx.blocks, budget: ctx.budget };
+            if (t === 'DIMENSION') {                                                  // Dimension ၏ anonymous block = WCS အတိုင်း
+                childCtx.m = M.slice();
+                blk.entities.forEach(function(e) { window.dxfEmitEntity(e, childCtx, out); });
+                break;
+            }
+            let pos = ent.position || { x: 0, y: 0 }, sx = (typeof ent.xScale === 'number') ? ent.xScale : 1, sy = (typeof ent.yScale === 'number') ? ent.yScale : 1;
+            let th = (ent.rotation || 0) * Math.PI / 180, cs = Math.cos(th), sn = Math.sin(th);
+            let rows = Math.min(ent.rowCount || 1, 200), cols = Math.min(ent.columnCount || 1, 200), rsp = ent.rowSpacing || 0, csp = ent.columnSpacing || 0;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let ox = c * csp, oy = r * rsp, tx = pos.x + ox * cs - oy * sn, ty = pos.y + ox * sn + oy * cs;
+                    // M_ins = T(tx,ty) · R(th) · S(sx,sy) · T(-base)
+                    let a = cs * sx, b = sn * sx, cc = -sn * sy, d = cs * sy;
+                    let e = tx - (a * base.x + cc * base.y), f = ty - (b * base.x + d * base.y);
+                    childCtx.m = [M[0] * a + M[2] * b, M[1] * a + M[3] * b, M[0] * cc + M[2] * d, M[1] * cc + M[3] * d, M[0] * e + M[2] * f + M[4], M[1] * e + M[3] * f + M[5]];
+                    blk.entities.forEach(function(ch) { window.dxfEmitEntity(ch, childCtx, out); });
+                }
+            }
+            break;
+        }
+        default:
+            ctx.budget.unsup[t] = (ctx.budget.unsup[t] || 0) + 1;
+    }
+};
+// ==== DXF IMPORT HELPERS (END) ====
 
 window.stringToColor = function(str) {
     let hash = 0;
@@ -1110,124 +1350,72 @@ window.renderDXF = function() {
     let sharedCanvasRenderer = L.canvas({ padding: 0.5, pane: 'dxfPane' });
     window.dxfCanvasRenderer = sharedCanvasRenderer; 
 
+    let blocks = window.rawDxfBlocks || {};
+    let budget = { n: 800000, hidden: 0, unsup: {} };                    // ဆွဲမည့် primitive အများဆုံး (block ချဲ့ပြီး မခဲစေရန်)
+    let rootCtx = { m: [1, 0, 0, 1, 0, 0], depth: 0, color: null, layer: null, blocks: blocks, budget: budget };
+
+    // AutoCAD အရောင်ကို မြေပုံပေါ်တွင် မြင်ရအောင် : အဖြူ/အနက် (ACI 7) ကို အဖြူနုရောင်သို့၊ "Dark colors" ဖွင့်ထားလျှင် အားလုံး မှောင်
+    function finalColor(col) {
+        if (isDarkLines) return "#0f172a";
+        col = String(col || "#ffffff").toLowerCase();
+        if (col === "#ffffff" || col === "#000000") return "#f8fafc";
+        return col;
+    }
+
+    function bindDxfEvent(layer, type, layerName) {
+        layer.on('click', function(e) {
+            if (window.isMeasuring || window.isDrawingBoundary || window.isDrawingExclude || window.isVolDrawing) return;
+
+            L.DomEvent.stopPropagation(e);
+            let html = `<div style="text-align:center; padding: 5px;">
+                <b style="color:#ca8a04; font-size:13px;">DXF Element</b><br>
+                <b style="font-size:11px; color:#1e3a8a;">Type: ${window.escHtml(type)}</b><br>
+                <span style="font-size:11px; color:#64748b;">Layer: ${window.escHtml(layerName || 'Unknown')}</span>
+            </div>`;
+            L.popup().setLatLng(e.latlng).setContent(html).openOn(window.leafletMap);
+        });
+    }
+
+    const out = {
+        poly: function(pts, closed, color, layer, type, fill) {
+            let ll = [];
+            for (let i = 0; i < pts.length; i++) {
+                let p = window.dxfToLatLon(pts[i][0], pts[i][1]);
+                if (!isNaN(p.lat) && !isNaN(p.lon)) ll.push([p.lat, p.lon]);
+            }
+            if (ll.length < 2) return;
+            let col = finalColor(color), obj;
+            if (fill && ll.length >= 3) obj = L.polygon(ll, { color: col, weight: 1, fillColor: col, fillOpacity: 0.55, renderer: sharedCanvasRenderer });
+            else obj = L.polyline(ll, { color: col, weight: 1.5, renderer: sharedCanvasRenderer });
+            bindDxfEvent(obj, type, layer); window.dxfLineLayer.addLayer(obj); lineCount++;
+            bounds.push(ll[0]); bounds.push(ll[ll.length - 1]); if (ll.length > 2) bounds.push(ll[ll.length >> 1]);
+        },
+        circle: function(x, y, r, color, layer) {
+            let c = window.dxfToLatLon(x, y); if (isNaN(c.lat)) return;
+            let obj = L.circle([c.lat, c.lon], { radius: r, color: finalColor(color), weight: 1.5, fill: false, renderer: sharedCanvasRenderer });
+            bindDxfEvent(obj, 'Circle', layer); window.dxfLineLayer.addLayer(obj); bounds.push([c.lat, c.lon]); lineCount++;
+        },
+        point: function(x, y, color, layer) {
+            let c = window.dxfToLatLon(x, y); if (isNaN(c.lat)) return;
+            let col = finalColor(color);
+            let obj = L.circleMarker([c.lat, c.lon], { radius: 2, color: col, weight: 1, fillColor: col, fillOpacity: 1, renderer: sharedCanvasRenderer });
+            bindDxfEvent(obj, 'Point', layer); window.dxfLineLayer.addLayer(obj); bounds.push([c.lat, c.lon]); lineCount++;
+        },
+        text: function(x, y, text, color, align, rot, layer) {
+            if (!text) return;
+            let p = window.dxfToLatLon(x, y); if (isNaN(p.lat)) return;
+            textsData.push({ lat: p.lat, lon: p.lon, text: text, color: finalColor(color), align: align, rotation: rot });
+            textCount++;
+        }
+    };
+
     function processChunk() {
         if (window.dxfCancelFlag) return;
 
-        let end = Math.min(currentIndex + chunkSize, totalEntities);
-        for (; currentIndex < end; currentIndex++) {
+        let _t0 = performance.now();
+        for (; currentIndex < totalEntities && (performance.now() - _t0) < 40; currentIndex++) {
             let ent = window.rawDxfEntities[currentIndex];
-
-            let color = "#3b82f6";
-
-            if (isDarkLines) {
-                color = "#0f172a";
-            } else {
-                if (ent.trueColor) {
-                    color = "#" + ent.trueColor.toString(16).padStart(6, '0');
-                } else {
-                    let rawColorNum = ent.colorIndex;
-                    if (rawColorNum === 256 || rawColorNum === 0 || rawColorNum === undefined || rawColorNum === null) {
-                        if (ent.layer && window.dxfLayerTable[ent.layer.toUpperCase()] !== undefined) {
-                            rawColorNum = window.dxfLayerTable[ent.layer.toUpperCase()];
-                        }
-                    }
-
-                    let aciColor = window.aciToHex(rawColorNum);
-                    if (aciColor !== null) {
-                        color = aciColor;
-                    } else if (ent.layer) {
-                        color = window.stringToColor(ent.layer);
-                    }
-                }
-                if (color.toLowerCase() === "#ffffff") color = "#f8fafc";
-            }
-
-            function bindDxfEvent(layer, type, layerName) {
-                layer.on('click', function(e) {
-                    if (window.isMeasuring || window.isDrawingBoundary || window.isDrawingExclude || window.isVolDrawing) return;
-                    
-                    L.DomEvent.stopPropagation(e);
-                    let html = `<div style="text-align:center; padding: 5px;">
-                        <b style="color:#ca8a04; font-size:13px;">DXF Element</b><br>
-                        <b style="font-size:11px; color:#1e3a8a;">Type: ${window.escHtml(type)}</b><br>
-                        <span style="font-size:11px; color:#64748b;">Layer: ${window.escHtml(layerName || 'Unknown')}</span>
-                    </div>`;
-                    L.popup().setLatLng(e.latlng).setContent(html).openOn(window.leafletMap);
-                });
-            }
-
-            try {
-                if (ent.type === 'LINE') { 
-                    let start = window.dxfToLatLon(ent.vertices[0].x, ent.vertices[0].y); 
-                    let end = window.dxfToLatLon(ent.vertices[1].x, ent.vertices[1].y); 
-                    if (!isNaN(start.lat) && !isNaN(end.lat)) { 
-                        let poly = L.polyline([[start.lat, start.lon], [end.lat, end.lon]], {color: color, weight: 1.5, renderer: sharedCanvasRenderer}); 
-                        bindDxfEvent(poly, 'Line', ent.layer); 
-                        window.dxfLineLayer.addLayer(poly); bounds.push([start.lat, start.lon]); lineCount++; 
-                    } 
-                }
-                else if (ent.type === 'POLYLINE' || ent.type === 'LWPOLYLINE') { 
-                    let latlngs = []; 
-                    ent.vertices.forEach(v => { 
-                        let p = window.dxfToLatLon(v.x, v.y); 
-                        if (!isNaN(p.lat) && !isNaN(p.lon)) { bounds.push([p.lat, p.lon]); latlngs.push([p.lat, p.lon]); } 
-                    }); 
-                    if (latlngs.length > 1) { 
-                        if (ent.shape === true) latlngs.push(latlngs[0]); 
-                        let poly = L.polyline(latlngs, {color: color, weight: 1.5, renderer: sharedCanvasRenderer}); 
-                        bindDxfEvent(poly, 'Polyline', ent.layer); window.dxfLineLayer.addLayer(poly); lineCount++; 
-                    } 
-                }
-                else if (ent.type === 'CIRCLE') { 
-                    let center = window.dxfToLatLon(ent.center.x, ent.center.y); 
-                    if (!isNaN(center.lat)) { 
-                        let circle = L.circle([center.lat, center.lon], {radius: ent.radius, color: color, weight: 1.5, fill: false, renderer: sharedCanvasRenderer}); 
-                        bindDxfEvent(circle, 'Circle', ent.layer); window.dxfLineLayer.addLayer(circle); bounds.push([center.lat, center.lon]); lineCount++; 
-                    } 
-                }
-                else if (ent.type === 'ARC') { 
-                    let cx = ent.center.x, cy = ent.center.y, r = ent.radius; 
-                    let startAngle = ent.startAngle, endAngle = ent.endAngle; 
-                    if (endAngle < startAngle) endAngle += 2 * Math.PI; 
-                    let arcPoints = []; 
-                    let step = 5 * Math.PI / 180; 
-                    for (let angle = startAngle; angle <= endAngle; angle += step) { 
-                        let p = window.dxfToLatLon(cx + r * Math.cos(angle), cy + r * Math.sin(angle)); 
-                        if (!isNaN(p.lat)) arcPoints.push([p.lat, p.lon]); 
-                    } 
-                    let pLast = window.dxfToLatLon(cx + r * Math.cos(endAngle), cy + r * Math.sin(endAngle)); 
-                    if (!isNaN(pLast.lat)) arcPoints.push([pLast.lat, pLast.lon]); 
-                    if (arcPoints.length > 1) { 
-                        let arcPoly = L.polyline(arcPoints, {color: color, weight: 1.5, renderer: sharedCanvasRenderer}); 
-                        bindDxfEvent(arcPoly, 'Arc', ent.layer); window.dxfLineLayer.addLayer(arcPoly); bounds.push(arcPoints[0]); lineCount++; 
-                    } 
-                }
-                else if (ent.type === 'POINT') { 
-                    let px = ent.position ? ent.position.x : ent.x; 
-                    let py = ent.position ? ent.position.y : ent.y; 
-                    let pt = window.dxfToLatLon(px, py); 
-                    if (!isNaN(pt.lat)) { 
-                        let dot = L.circleMarker([pt.lat, pt.lon], {radius: 2, color: color, weight: 1, fillColor: color, fillOpacity: 1, renderer: sharedCanvasRenderer}); 
-                        bindDxfEvent(dot, 'Point', ent.layer); window.dxfLineLayer.addLayer(dot); bounds.push([pt.lat, pt.lon]); lineCount++; 
-                    } 
-                }
-                else if (ent.type === 'TEXT' || ent.type === 'MTEXT') {
-                    let px = ent.startPoint.x; let py = ent.startPoint.y;
-                    if (ent.attachmentPoint && [2, 3, 5, 6, 8, 9].includes(ent.attachmentPoint)) { 
-                        if(ent.x !== undefined && ent.y !== undefined) { px = ent.x; py = ent.y; } 
-                    }
-                    let p = window.dxfToLatLon(px, py);
-                    if (!isNaN(p.lat)) {
-                        let align = 'left'; 
-                        if (ent.attachmentPoint) { 
-                            if ([2, 5, 8].includes(ent.attachmentPoint)) align = 'center'; 
-                            else if ([3, 6, 9].includes(ent.attachmentPoint)) align = 'right'; 
-                        }
-                        textsData.push({ lat: p.lat, lon: p.lon, text: ent.text, color: color, align: align, rotation: ent.rotation });
-                        textCount++;
-                    }
-                }
-            } catch(e) {}
+            try { window.dxfEmitEntity(ent, rootCtx, out); } catch (e) {}
         }
         let percent = Math.round((currentIndex / totalEntities) * 100);
 
@@ -1236,7 +1424,12 @@ window.renderDXF = function() {
         document.getElementById('dxf_status').innerHTML = `⏳ Drawing... ${percent}%`;
         if (currentIndex < totalEntities) { setTimeout(processChunk, 5); }
         else {
-            document.getElementById('dxf_status').innerHTML = `✅ Loaded <b>${lineCount}</b> entities & <b>${textCount}</b> texts.`;
+            let _extra = '';
+            if (budget.hidden) _extra += ` · ${budget.hidden} on hidden layers skipped`;
+            let _un = Object.keys(budget.unsup);
+            if (_un.length) _extra += ` · ⚠️ not drawn: ` + _un.map(k => window.escHtml(k) + '×' + budget.unsup[k]).join(', ');
+            if (budget.n <= 0) _extra += ' · ⚠️ drawing limit reached';
+            document.getElementById('dxf_status').innerHTML = `✅ Loaded <b>${lineCount}</b> entities & <b>${textCount}</b> texts.${_extra}`;
             window.dxfTextLayer = new L.CanvasTextLayer(textsData);
 
             let chkLines = document.getElementById('tgl_dxf_lines'); if (chkLines) { chkLines.checked = true; chkLines.disabled = false; }
