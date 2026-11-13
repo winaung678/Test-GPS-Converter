@@ -271,6 +271,15 @@ window.labelRefreshButton = function() {
     window.syncDrawBar();
 };
 
+// Contour Labels box ကို collapse / expand (Quick ခလုတ်နဲ့ Clear ခလုတ်ကို panel ကနေ ဖယ်ပြီ - Draw လုပ်နေချိန် map အောက်က toolbar မှာ Quick/Curve, Undo, Clear, Done ရှိပြီးသား)
+window.toggleTopoLabelBox = function() {
+    let body = document.getElementById('topo_label_body'), arr = document.getElementById('topo_label_arrow');
+    if (!body) return;
+    let hide = body.style.display !== 'none';
+    body.style.display = hide ? 'none' : '';
+    if (arr) arr.innerText = hide ? '\u25B8' : '\u25BE';
+};
+
 window.toggleLabelQuickMode = function() {
     window.labelQuickMode = !window.labelQuickMode;
     // Quick သို့ပြောင်းချိန် point ၂ ခုနှင့်အထက်ရှိနေလျှင် ယခု line ကို သိမ်းပြီး အသစ်စ

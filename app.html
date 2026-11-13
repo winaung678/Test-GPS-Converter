@@ -836,25 +836,25 @@
         </div>
         <!-- Contour Labels (Label Line) -->
         <div id="topo_label_box" class="lbl-box">
-            <label class="lbl-title">&#127991;&#65039; Contour Labels - draw a line across the contours</label>
-            <div class="btn-row">
-                <button id="btn_label_draw" class="btn-action btn-sm tone-rose f2" onclick="if(typeof toggleLabelLineDraw === 'function') toggleLabelLineDraw()">&#127991;&#65039; Draw Label Line</button>
-                <button class="btn-action btn-sm tone-slate f1" onclick="if(typeof clearLabelLines === 'function') clearLabelLines()">&#128465;&#65039; Clear</button>
+            <label class="lbl-title" style="cursor:pointer; user-select:none;" onclick="if(typeof toggleTopoLabelBox === 'function') toggleTopoLabelBox()"><span id="topo_label_arrow">&#9662;</span> &#127991;&#65039; Contour Labels - draw a line across the contours</label>
+            <div id="topo_label_body">
+                <div class="btn-row">
+                    <button id="btn_label_draw" class="btn-action btn-sm tone-rose f2" onclick="if(typeof toggleLabelLineDraw === 'function') toggleLabelLineDraw()">&#127991;&#65039; Draw Label Line</button>
+                </div>
+                <div class="chk-row">
+                    <input type="checkbox" id="topo_label_minor" onchange="if(typeof refreshContourLabels === 'function') refreshContourLabels()">
+                    <label for="topo_label_minor">Also label minor contours</label>
+                </div>
+                <div class="chk-row">
+                    <input type="checkbox" id="topo_label_all" onchange="if(typeof refreshContourLabels === 'function') refreshContourLabels()">
+                    <label for="topo_label_all">Label every crossing (allow overlap)</label>
+                </div>
+                <div class="chk-row">
+                    <label for="topo_label_gap">Gap between labels (&times; text height)</label>
+                    <input type="number" id="topo_label_gap" class="num-sm" value="0.1" min="0" step="0.1" oninput="if(typeof refreshContourLabels === 'function') refreshContourLabels()">
+                </div>
+                <div id="topo_label_info" class="note">No label line yet - no contour labels are shown.</div>
             </div>
-            <button id="btn_label_mode" class="btn-action btn-sm tone-teal w100" style="margin-top:6px;" onclick="if(typeof toggleLabelQuickMode === 'function') toggleLabelQuickMode()">&#9889; Quick: 2 taps = 1 line (tap to switch)</button>
-            <div class="chk-row">
-                <input type="checkbox" id="topo_label_minor" onchange="if(typeof refreshContourLabels === 'function') refreshContourLabels()">
-                <label for="topo_label_minor">Also label minor contours</label>
-            </div>
-            <div class="chk-row">
-                <input type="checkbox" id="topo_label_all" onchange="if(typeof refreshContourLabels === 'function') refreshContourLabels()">
-                <label for="topo_label_all">Label every crossing (allow overlap)</label>
-            </div>
-            <div class="chk-row">
-                <label for="topo_label_gap">Gap between labels (&times; text height)</label>
-                <input type="number" id="topo_label_gap" class="num-sm" value="0.1" min="0" step="0.1" oninput="if(typeof refreshContourLabels === 'function') refreshContourLabels()">
-            </div>
-            <div id="topo_label_info" class="note">No label line yet - no contour labels are shown.</div>
         </div>
 
         <div style="display:flex; gap:5px;">
