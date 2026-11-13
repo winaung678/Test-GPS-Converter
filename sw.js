@@ -1,4 +1,4 @@
-const CACHE_NAME = 'survey-pro-cache-v9.2.01';
+const CACHE_NAME = 'survey-pro-cache-v9.2.2';
 
 // Local files (a missing file is skipped; it no longer breaks the whole install)
 const localFiles = [
