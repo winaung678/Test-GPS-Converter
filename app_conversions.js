@@ -40,35 +40,51 @@ window.v2_run = function() {
     document.getElementById('v2_out').innerHTML = out;
 };
 
-window.m_toggleUI = function() { let m = document.getElementById('m_mode').value; let n = (m === 'W_NE2LL' || m === 'W2M_NE' || m === 'M2W_NE'); document.getElementById('m_ll_div').className = n ? 'hidden' : ''; document.getElementById('m_ne_div').className = n ? '' : 'hidden'; };
+window.m_toggleUI = function() { let m = document.getElementById('m_mode').value; let n = (m === 'W_NE2LL' || m === 'W2M_NE' || m === 'M2W_NE' || m === 'M_NE2LL'); document.getElementById('m_ll_div').className = n ? 'hidden' : ''; document.getElementById('m_ne_div').className = n ? '' : 'hidden'; let hDiv = document.getElementById('m_h_div'); if (hDiv) { let needH = (m.indexOf('W2M') === 0 || m.indexOf('M2W') === 0); hDiv.className = needH ? '' : 'hidden'; let hLb = document.getElementById('m_h_label'); if (hLb) hLb.innerText = (m.indexOf('M2W') === 0) ? 'MM2000 (Everest) Ellipsoidal Height h (m) \u2014 optional' : 'WGS84 Ellipsoidal Height h (m) \u2014 optional'; } };
 
 window.m_sync = function(p, t) { let v = document.getElementById('m_'+p+'_dd'); if(t === 'dd') { let n = parseFloat(v.value); if(isNaN(n)) return; let a = Math.abs(n), d = Math.floor(a), m = Math.floor((a-d)*60), s = ((a-d-m/60)*3600).toFixed(4); document.getElementById('m_'+p+'_d').value = n < 0 ? -d : d; document.getElementById('m_'+p+'_m').value = m; document.getElementById('m_'+p+'_s').value = s; } else { let d = parseFloat(document.getElementById('m_'+p+'_d').value) || 0; let m = parseFloat(document.getElementById('m_'+p+'_m').value) || 0; let s = parseFloat(document.getElementById('m_'+p+'_s').value) || 0; let sn = (d < 0 || document.getElementById('m_'+p+'_d').value.includes('-')) ? -1 : 1; v.value = (sn * (Math.abs(d) + Math.abs(m)/60 + Math.abs(s)/3600)).toFixed(9); } if(!window.isNativeGPSActive && p === 'lon') window.autoDetectZone(parseFloat(v.value)); };
 
-window.autoDetectZone = function(lon) { let m = document.getElementById('m_mode').value; if(m === 'W_LL2NE' || m === 'W2M_LL' || m === 'M2W_LL') { let z = Math.floor((lon+180)/6) + 1; if(z === 46 || z === 47) document.getElementById('m_zone').value = z.toString(); } };
+window.autoDetectZone = function(lon) { let m = document.getElementById('m_mode').value; if(m === 'W_LL2NE' || m === 'W2M_LL' || m === 'M2W_LL' || m === 'M_LL2NE') { let z = Math.floor((lon+180)/6) + 1; if(z === 46 || z === 47) document.getElementById('m_zone').value = z.toString(); } };
 
 window.m_run = function() {
     let m = document.getElementById('m_mode').value; let z = parseInt(document.getElementById('m_zone').value); let wLa, wLo, wE, wN, mLa, mLo, mE, mN;
+    // Ellipsoidal height (h): 3D datum shift မှာ h ပါမှ တိကျ (အမြင့် 100 m ≈ E 0.5 cm)။
+    //   W2M => WGS84 h | M2W => MM2000 (Everest) h | Native GPS => raw GPS alt | မထည့်ရင် 0
+    let mH = null, wH = null, hUsed = 0, hGiven = false;
+    if (m.indexOf('W2M') === 0 || m.indexOf('M2W') === 0) {
+        let hEl = document.getElementById('m_h'); let hv = hEl ? parseFloat(String(hEl.value).replace(',', '.')) : NaN;
+        if (!isNaN(hv)) { hUsed = hv; hGiven = true; }
+        else if (window.isNativeGPSActive && isFinite(window.currentRawAlt) && window.currentRawAlt !== 0) { hUsed = window.currentRawAlt; hGiven = true; }
+    }
     if(m === 'W_LL2NE') { wLa = parseFloat(document.getElementById('m_lat_dd').value); wLo = parseFloat(document.getElementById('m_lon_dd').value); if(isNaN(wLa)) return; let p = m_project(wLa, wLo, z, m_WGS); wE = p.e; wN = p.n; }
     else if(m === 'W_NE2LL') { wE = parseFloat(document.getElementById('m_inp_e').value); wN = parseFloat(document.getElementById('m_inp_n').value); if(isNaN(wE)) return; let i = m_inverse(wE, wN, z, m_WGS); wLa = i.lat; wLo = i.lon; }
+    else if(m === 'M_LL2NE' || m === 'M_NE2LL') {   // MM2000 အတွင်းပဲ (datum မရွှေ့) - Everest ellipsoid
+        if(m === 'M_LL2NE') { mLa = parseFloat(document.getElementById('m_lat_dd').value); mLo = parseFloat(document.getElementById('m_lon_dd').value); if(isNaN(mLa) || isNaN(mLo)) return; let p = m_project(mLa, mLo, z, m_EVE); mE = p.e; mN = p.n; }
+        else { mE = parseFloat(document.getElementById('m_inp_e').value); mN = parseFloat(document.getElementById('m_inp_n').value); if(isNaN(mE) || isNaN(mN)) return; let i = m_inverse(mE, mN, z, m_EVE); mLa = i.lat; mLo = i.lon; }
+        // Map pin / Geoid / Out-of-bounds စစ်ဖို့ WGS84 ကို အနီးစပ်ဆုံး (h=0) တွက်ထားသည် - ရလဒ်မှာ မပြ
+        let x0 = m_llh2xyz(mLa, mLo, 0, m_EVE); let w0 = m_xyz2llh(x0.x-m_DX, x0.y-m_DY, x0.z-m_DZ, m_WGS); wLa = w0.lat; wLo = w0.lon; let pW0 = m_project(wLa, wLo, z, m_WGS); wE = pW0.e; wN = pW0.n;
+    }
     else if(m.startsWith('W2M')) {
         if(m === 'W2M_LL') { wLa = parseFloat(document.getElementById('m_lat_dd').value); wLo = parseFloat(document.getElementById('m_lon_dd').value); }
         else { wE = parseFloat(document.getElementById('m_inp_e').value); wN = parseFloat(document.getElementById('m_inp_n').value); let i = m_inverse(wE, wN, z, m_WGS); wLa = i.lat; wLo = i.lon; }
-        let pW = m_project(wLa, wLo, z, m_WGS); wE = pW.e; wN = pW.n; let x = m_llh2xyz(wLa, wLo, 0, m_WGS); let mL = m_xyz2llh(x.x+m_DX, x.y+m_DY, x.z+m_DZ, m_EVE); mLa = mL.lat; mLo = mL.lon; let pM = m_project(mLa, mLo, z, m_EVE); mE = pM.e; mN = pM.n;
+        let pW = m_project(wLa, wLo, z, m_WGS); wE = pW.e; wN = pW.n; let x = m_llh2xyz(wLa, wLo, hUsed, m_WGS); let mL = m_xyz2llh(x.x+m_DX, x.y+m_DY, x.z+m_DZ, m_EVE); mLa = mL.lat; mLo = mL.lon; mH = mL.h; wH = hUsed; let pM = m_project(mLa, mLo, z, m_EVE); mE = pM.e; mN = pM.n;
     } else {
         if(m === 'M2W_LL') { mLa = parseFloat(document.getElementById('m_lat_dd').value); mLo = parseFloat(document.getElementById('m_lon_dd').value); }
         else { mE = parseFloat(document.getElementById('m_inp_e').value); mN = parseFloat(document.getElementById('m_inp_n').value); let i = m_inverse(mE, mN, z, m_EVE); mLa = i.lat; mLo = i.lon; }
-        let pM = m_project(mLa, mLo, z, m_EVE); mE = pM.e; mN = pM.n; let x = m_llh2xyz(mLa, mLo, 0, m_EVE); let wL = m_xyz2llh(x.x-m_DX, x.y-m_DY, x.z-m_DZ, m_WGS); wLa = wL.lat; wLo = wL.lon; let pW = m_project(wLa, wLo, z, m_WGS); wE = pW.e; wN = pW.n;
+        let pM = m_project(mLa, mLo, z, m_EVE); mE = pM.e; mN = pM.n; let x = m_llh2xyz(mLa, mLo, hUsed, m_EVE); let wL = m_xyz2llh(x.x-m_DX, x.y-m_DY, x.z-m_DZ, m_WGS); wLa = wL.lat; wLo = wL.lon; wH = wL.h; mH = hUsed; let pW = m_project(wLa, wLo, z, m_WGS); wE = pW.e; wN = pW.n;
     }
     window.m_map_lat = wLa; window.m_map_lon = wLo;
     if (window.isNativeGPSActive && !(wLa >= 9.0 && wLa <= 29.0 && wLo >= 92.0 && wLo <= 102.0)) return document.getElementById('m_out').innerHTML = `<div style="background:#fef2f2;border:2px solid #ef4444;color:#991b1b;padding:15px;border-radius:10px;text-align:center;margin-top:10px;"><b>⚠️ Out of Bounds</b></div>`;
-    if(m.includes('W2M') || m.includes('M2W')) { window.latest_local_N = mN; window.latest_local_E = mE; } else { window.latest_local_N = wN; window.latest_local_E = wE; }
+    if(m.includes('W2M') || m.includes('M2W') || m.indexOf('M_') === 0) { window.latest_local_N = mN; window.latest_local_E = mE; } else { window.latest_local_N = wN; window.latest_local_E = wE; }
     window.latest_wgs_N = wN; window.latest_wgs_E = wE; window.latest_lat = wLa; window.latest_lon = wLo;
     if(!window.isNativeGPSActive) { window.latest_Z = 0; fetchGeoidDataFromNative(wLa, wLo); }
     let geoidLabel = window.currentGeoidN ? `Geoid (N): ${window.currentGeoidN.toFixed(3)} m (${window.currentGeoidModel})` : `Geoid (N): N/A`;
     let out = "";
-    if(m.includes('W2M')) out += m_fmt("MM2000", mLa, mLo, mE, mN, geoidLabel) + m_fmt("WGS84", wLa, wLo, wE, wN, geoidLabel);
-    else if(m.includes('M2W')) out += m_fmt("WGS84", wLa, wLo, wE, wN, geoidLabel) + m_fmt("MM2000", mLa, mLo, mE, mN, geoidLabel);
+    if(m.includes('W2M')) out += m_fmt("MM2000", mLa, mLo, mE, mN, geoidLabel, m_hTxt(mH, hGiven)) + m_fmt("WGS84", wLa, wLo, wE, wN, geoidLabel, m_hTxt(wH, hGiven));
+    else if(m.includes('M2W')) out += m_fmt("WGS84", wLa, wLo, wE, wN, geoidLabel, m_hTxt(wH, hGiven)) + m_fmt("MM2000", mLa, mLo, mE, mN, geoidLabel, m_hTxt(mH, hGiven));
+    else if(m.indexOf('M_') === 0) out += m_fmt("MM2000", mLa, mLo, mE, mN, geoidLabel);
     else out += m_fmt("WGS84", wLa, wLo, wE, wN, geoidLabel);
+    if ((m.indexOf('W2M') === 0 || m.indexOf('M2W') === 0) && !hGiven) out += '<div class="meta-info-box" style="color:#b45309;">\u2139\uFE0F h not entered \u2192 h = 0 m used. At high elevation enter the ellipsoidal height (h) above for cm-level accuracy (\u2248 0.5 cm per 100 m).</div>';
     if (!window.isNativeGPSActive) out += getManualSaveBoxUI('MM2000', 'm');
     document.getElementById('m_out').innerHTML = out;
 };
@@ -142,7 +158,8 @@ window.g_run = function() {
 
 function getManualSaveBoxUI(datumLabel, prefix) { return `<div style="margin-top:15px; border-top:1px dashed var(--input-border); padding-top:12px;"><div style="font-size:13px;font-weight:bold;color:var(--primary);margin-bottom:10px;text-align:center;">💾 Save Converted Point</div><div style="display:flex; gap:8px; margin-bottom:10px;"><input type="text" id="${prefix}_man_pt" class="v2-input" placeholder="Point (P)" style="flex:1; padding:10px; margin:0;"><input type="text" id="${prefix}_man_desc" class="v2-input" placeholder="Code (D)" style="flex:2; padding:10px; margin:0;"></div><div style="display:flex; gap:8px; margin-bottom:8px;"><button class="btn-action" style="flex:1; background:#1e40af; padding:12px; font-size:12px;" onclick="saveManualPoint('${datumLabel}', '${prefix}')">💾 Save Point</button></div><div style="display:flex; gap:8px;"><button class="btn-action" style="flex:1; background:#f59e0b; padding:12px; font-size:12px;" onclick="triggerExport()">📁 Export CSV</button><button class="btn-action" style="flex:1; background:#ef4444; padding:12px; font-size:12px;" onclick="triggerClearRecords()">🗑️ Clear Records</button></div><div id="${prefix}_man_stat" style="margin-top:10px; font-size:13px; font-weight:bold; color:#059669; text-align:center;"></div></div>`; }
 
-function m_fmt(t, la, lo, e, n, gLabel) { return `<div style="margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:5px;"><b>${t}</b><br>N: <span style="color:red">${n.toFixed(3)} m</span>, E: <span style="color:red">${e.toFixed(3)} m</span><br>Lat: ${la.toFixed(8)}° (DD)<br>Lon: ${lo.toFixed(8)}° (DD)<br><span class="dms-span">${m_toDMS(la,1)} | ${m_toDMS(lo,0)}</span><div class="badge-container"><span class="badge-local">${t==="MM2000"?"🇲🇲 MM2000 Datum":"🌐 WGS84 System"}</span><span class="badge-global">🌍 UTM: ${getUTMZoneString(la,lo)}</span></div><div class="meta-info-box" style="color:#1e40af;">${gLabel}</div>${window.isNativeGPSActive?`<div class="meta-info-box">${window.globalZText}</div>`:""}</div>`; }
+function m_hTxt(h, given) { return (given && h !== null && isFinite(h)) ? `Ell. Ht (h): ${h.toFixed(3)} m` : ""; }
+function m_fmt(t, la, lo, e, n, gLabel, hTxt) { return `<div style="margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:5px;"><b>${t}</b><br>N: <span style="color:red">${n.toFixed(3)} m</span>, E: <span style="color:red">${e.toFixed(3)} m</span><br>Lat: ${la.toFixed(8)}° (DD)<br>Lon: ${lo.toFixed(8)}° (DD)${hTxt ? '<br>' + hTxt : ''}<br><span class="dms-span">${m_toDMS(la,1)} | ${m_toDMS(lo,0)}</span><div class="badge-container"><span class="badge-local">${t==="MM2000"?"🇲🇲 MM2000 Datum":"🌐 WGS84 System"}</span><span class="badge-global">🌍 UTM: ${getUTMZoneString(la,lo)}</span></div><div class="meta-info-box" style="color:#1e40af;">${gLabel}</div>${window.isNativeGPSActive?`<div class="meta-info-box">${window.globalZText}</div>`:""}</div>`; }
 
 window.v2_reset = function() { if(!window.isNativeGPSActive) { document.querySelectorAll('#app1_view input').forEach(i => i.value=''); { let z = document.getElementById('v2_zone'); if (z) z.value = '48'; } window.latest_local_N=0; window.latest_local_E=0; window.latest_wgs_N=0; window.latest_wgs_E=0; window.latest_Z=0; } document.getElementById('v2_out').innerHTML='<p style="text-align:center;opacity:0.5;margin-top:30px;">Results will appear here</p>'; window.v2_map_lat = window.v2_map_lon = null; };
 window.m_reset = function() { if(!window.isNativeGPSActive) { document.querySelectorAll('#app2_view input').forEach(i => i.value=''); window.latest_local_N=0; window.latest_local_E=0; window.latest_wgs_N=0; window.latest_wgs_E=0; window.latest_Z=0; } document.getElementById('m_out').innerHTML='<p style="text-align:center;opacity:0.5;margin-top:30px;">Results will appear here</p>'; window.m_map_lat = window.m_map_lon = null; };

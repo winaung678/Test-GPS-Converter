@@ -6,11 +6,9 @@
     <title>Win Aung - GPS Converter</title>
     <link rel="stylesheet" href="leaflet.css"/>
     <script src="leaflet.js"></script>
-    <script src="https://unpkg.com/dxf-parser/dist/dxf-parser.js"></script>
+    <script src="https://unpkg.com/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8322907628238853"
-            crossorigin="anonymous"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -99,18 +97,6 @@
                     <span class="dash-subtext" style="display:block;">Photo with GPS Watermark</span>
                 </div>
             </button>
-        </div>
-        <div style="text-align: center; margin: 20px 0; min-height: 50px; display: flex; justify-content: center;">
-            <script>
-              atOptions = {
-                'key' : '89b5f2690102055b398f7bc16d32b325',
-                'format' : 'iframe',
-                'height' : 50,
-                'width' : 320,
-                'params' : {}
-              };
-            </script>
-            <script src="https://www.highperformanceformat.com/89b5f2690102055b398f7bc16d32b325/invoke.js"></script>
         </div>
         <!-- 🔴 ADD THIS SEO/ARTICLE CONTENT FOR GOOGLE ADSENSE APPROVAL 🔴 -->
         <div style="padding: 20px; margin-top: 30px; background: var(--card-bg); border-radius: 15px; border: 1px solid var(--input-border); color: var(--text); line-height: 1.6; font-size: 13px;">
@@ -212,6 +198,7 @@
                         <option value="W_LL2NE">WGS84 LL → WGS84 NE</option><option value="W_NE2LL">WGS84 NE → WGS84 LL</option>
                         <option value="W2M_LL">WGS84 LL → MM2000</option><option value="W2M_NE">WGS84 NE → MM2000</option>
                         <option value="M2W_LL">MM2000 LL → WGS84</option><option value="M2W_NE">MM2000 NE → WGS84</option>
+                        <option value="M_LL2NE">MM2000 LL → MM2000 NE</option><option value="M_NE2LL">MM2000 NE → MM2000 LL</option>
                     </select>
                     <div id="m_ll_div">
                         <label class="v2-label">Latitude (DD / DMS)</label><input type="text" inputmode="text" id="m_lat_dd" class="v2-input" oninput="m_sync('lat','dd')">
@@ -222,6 +209,9 @@
                     <div id="m_ne_div" class="hidden">
                         <label class="v2-label">Easting (E)</label><input type="text" inputmode="text" id="m_inp_e" class="v2-input">
                         <label class="v2-label">Northing (N)</label><input type="text" inputmode="text" id="m_inp_n" class="v2-input">
+                    </div>
+                    <div id="m_h_div" class="hidden">
+                        <label class="v2-label" id="m_h_label">WGS84 Ellipsoidal Height h (m) — optional</label><input type="text" inputmode="text" id="m_h" class="v2-input" placeholder="e.g. 904.498  (blank = 0)">
                     </div>
                     <label class="v2-label">UTM Zone (Auto-detected)</label>
                     <select id="m_zone"><option value="46">Zone 46 (93° E)</option><option value="47" selected>Zone 47 (99° E)</option></select>
@@ -884,6 +874,8 @@
             <label style="color:#94a3b8; font-size:13px; font-weight:bold; white-space:nowrap;">Z-Scale: <span id="z_scale_val" style="color:#38bdf8;">0.5x</span></label>
             <!-- Range က 0.1 (ပြားပြားလေး) ကနေ 2.0 (အရမ်းမြင့်သော) အထိ ထားပေးထားပါတယ် -->
             <input type="range" id="topo_z_scale" min="0.1" max="2.0" step="0.1" value="0.5" style="flex:1; cursor:pointer;" oninput="update3DScale(this.value)">
+            <button type="button" onclick="zoom3D(1.25)" style="background:#334155; color:#fff; border:none; width:36px; height:32px; border-radius:6px; font-size:18px; font-weight:bold; cursor:pointer;">−</button>
+            <button type="button" onclick="zoom3D(0.8)" style="background:#334155; color:#fff; border:none; width:36px; height:32px; border-radius:6px; font-size:18px; font-weight:bold; cursor:pointer;">+</button>
         </div>
 
         <div id="plotly_3d_div" style="width:100%; flex:1; background:#1e293b;"></div>
@@ -1368,14 +1360,26 @@
 
 <script src="formulas.js"></script>
 <script src="globals.js"></script>
-<script src="map_engine.js"></script>
+<script src="map_01_measure.js"></script>
+<script src="map_02_toolgate_drawbar.js"></script>
+<script src="map_03_online.js"></script>
+<script src="map_04_dxf_import.js"></script>
+<script src="map_05_dxf_canvas.js"></script>
+<script src="map_06_plot_grid.js"></script>
+<script src="map_07_profile.js"></script>
 <script src="dxf_tools.js"></script>
 <script src="app_conversions.js"></script>
 <!-- 🔴 AI မျက်စိမလည်စေရန် နာမည်ပြောင်းထားသော ဖိုင်အသစ်များ 🔴 -->
 <script src="module_cogo_stakeout.js"></script> 
-<script src="module_surface_volume.js"></script>
+<script src="sv_01_topo.js"></script>
+<script src="sv_02_contour_clip.js"></script>
+<script src="sv_03_export_3d_kml.js"></script>
+<script src="sv_04_volume_ui.js"></script>
+<script src="sv_05_volume_calc.js"></script>
+<script src="sv_06_profile_section.js"></script>
+<script src="sv_07_pfcs_dxf.js"></script>
+<script src="sv_08_contour_labels.js"></script>
 <script src="app_camera.js"></script>
 <script src="app_logic.js"></script>
-<script src="https://pl29905456.effectivecpmnetwork.com/7f/6e/47/7f6e47086726dcc7791f39e47405f88d.js"></script>
 </body>
 </html>

@@ -98,7 +98,9 @@ function m_xyz2llh(x, y, z, ell) {
         h = p / Math.cos(la) - N;
         la = Math.atan2(z, p * (1 - e * (N / (N + h))));
     } while (Math.abs(la - la0) > 1e-15);
-    return { lat: la * 180 / Math.PI, lon: lo * 180 / Math.PI };
+    N = ell.a / Math.sqrt(1 - e * Math.sin(la) * Math.sin(la));
+    h = p / Math.cos(la) - N;   // ellipsoidal height (m) ကိုပါ ပြန်ပေး (အရင် caller တွေက lat/lon ကိုပဲ သုံးလို့ မထိခိုက်)
+    return { lat: la * 180 / Math.PI, lon: lo * 180 / Math.PI, h: h };
 }
 
 function m_project(la, lo, z, ell) {
