@@ -1,4 +1,4 @@
-const CACHE_NAME = 'survey-pro-cache-v9.2.2';
+const CACHE_NAME = 'survey-pro-cache-v9.0.11';
 
 // Local files (a missing file is skipped; it no longer breaks the whole install)
 const localFiles = [
@@ -8,7 +8,7 @@ const localFiles = [
   './formulas.js', './globals.js', './map_01_measure.js', './map_02_toolgate_drawbar.js', './map_03_online.js', './map_04_dxf_import.js',
   './map_05_dxf_canvas.js', './map_06_plot_grid.js', './map_07_profile.js', './dxf_tools.js', './app_conversions.js',
   './module_cogo_stakeout.js', './sv_01_topo.js', './sv_02_contour_clip.js', './sv_03_export_3d_kml.js', './sv_04_volume_ui.js',
-  './sv_05_volume_calc.js', './sv_06_profile_section.js', './sv_07_pfcs_dxf.js', './sv_08_contour_labels.js', './app_camera.js', './app_logic.js',
+  './sv_05_volume_calc.js', './sv_06_profile_section.js', './sv_07_pfcs_dxf.js', './sv_08_contour_labels.js', './job_manager.js', './app_camera.js', './app_logic.js',
   './manifest.json', './egm2008_1min.bin', './egm96_global.bin', './icon-192.png', './icon-512.png'
 ];
 
