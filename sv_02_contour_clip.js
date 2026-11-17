@@ -64,10 +64,15 @@ window.clipContoursToRegion = function(polylines, boundaryPoly, excludePolys) {
     return out;
 };
 
-window.processTopoSurface = function() {
+window.processTopoSurface = async function() {
     if (window.topoPoints.length < 3) return alert("Please load CSV first!");
+    if (window._topoBusy) return;                    // တွက်နေစဉ် ထပ်နှိပ်ရင် ကျော်
+    window._topoBusy = true;
+    const tick = () => new Promise(r => setTimeout(r, 0));   // status စာသား ပြန်ပေါ်ဖို့ browser ကို အချိန်ပေး (point များလျှင် UI မရပ်အောင်)
     let statBox = document.getElementById('topo_status');
+    try {
     statBox.style.display = 'block'; statBox.style.color = '#d97706'; statBox.innerText = `⏳ Calculating Surface...`;
+    await tick();
 
     window.topoTriangles = generateDelaunayTriangulation(window.topoPoints);
     let contourTriangles = window.topoTriangles;   // Contour ထုတ်ရန် triangle (Boundary/Exclude ကို polygon ဖြင့် အတိအကျ ဖြတ်မည်)
@@ -94,26 +99,32 @@ window.processTopoSurface = function() {
             for (let i = 0; i < window.topoExcludePolygons.length; i++) {
                 if (window.isPointInBoundary(centerN, centerE, window.topoExcludePolygons[i])) { isInsideHole = true; break; }
             }
-            return !isInsideHole; 
+            return !isInsideHole;
         });
     }
 
     let majorInt = parseFloat(document.getElementById('topo_major_int').value) || 1.0;
     let minorInt = parseFloat(document.getElementById('topo_minor_int').value) || 0.2;
-    window.topoContours = generateContours(window.topoPoints, contourTriangles, minorInt, majorInt);
+    statBox.innerText = `⏳ Contours 0%...`; await tick();
+    window.topoContours = await generateContoursAsync(window.topoPoints, contourTriangles, minorInt, majorInt, p => { statBox.innerText = `⏳ Contours ${Math.round(p * 100)}%...`; });
     // Surface Boundary (manual) နှင့် Exclude Area ကို Contour အပေါ် polygon နှင့် အတိအကျ ဖြတ်ညှပ်သည်
+    statBox.innerText = `⏳ Clipping contours...`; await tick();
     window.topoContours = window.clipContoursToRegion(
         window.topoContours,
         (bdyMethod === 'manual') ? window.topoBoundaryPolygon : [],
         window.topoExcludePolygons
     );
 
-    statBox.style.color = '#10b981'; statBox.innerText = `✅ Success! Surface Generated.`;
+    statBox.innerText = `⏳ Drawing map...`; await tick();
     document.getElementById('topo_export_box').classList.remove('hidden');
     if (typeof window.accCollapse === 'function') window.accCollapse(['topo:coord', 'topo:contour', 'topo:layout', 'topo:bdy']);   // Generate ပြီးလျှင် Setting များကို ခေါက်ထားသည် (ပြန်ဖြန့်၍ရ)
 
     window.showContoursOnMap();
-    window.showTinOnMap(); 
+    window.showTinOnMap();
+    statBox.style.color = '#10b981'; statBox.innerText = `✅ Success! Surface Generated.`;
+    if (typeof window.dxfSheetInfoUpdate === 'function') { try { window.dxfSheetInfoUpdate(); } catch (e) { } }   // စာရွက်အရေအတွက် ကြိုကြည့်ချက်
+    } finally { window._topoBusy = false; }
+    return true;
 };
 
 window.topoContourTextLayer = null;
@@ -170,28 +181,9 @@ window.updateContourStyle = function() {
 
 window.showTinOnMap = function() {
     if (!window.leafletMap) return;
-    if (window.topoTinLayer) window.leafletMap.removeLayer(window.topoTinLayer);
-    window.topoTinLayer = L.layerGroup(); 
-    let datum = document.getElementById('topo_datum').value;
-
-    let getLatLng = (n, e) => {
-        let lat = n, lon = e; 
-        if (datum === 'LOCAL') { lat = (n - window.localOffsetN) / 100000; lon = (e - window.localOffsetE) / 100000; }
-        else if (datum === "SVY21") { let r = calc_v2_rev(e, n); lat = r.lat; lon = r.lon; }
-        else if (datum.startsWith("MM")) { let zone = parseInt(datum.slice(-2)); let r = m_inverse(e, n, zone, m_EVE); let x = m_llh2xyz(r.lat, r.lon, 0, m_EVE); let w = m_xyz2llh(x.x-m_DX, x.y-m_DY, x.z-m_DZ, m_WGS); lat = w.lat; lon = w.lon; }
-        else if (datum.startsWith("WGS_UTM")) { let zone = parseInt(datum.slice(-2)); let i = m_inverse(e, n, zone, m_WGS); lat = i.lat; lon = i.lon; }
-        else if (datum === "GLOBAL_UTM") { let zInput = document.getElementById('topo_custom_zone'); let hInput = document.getElementById('topo_custom_hemi'); let zone = (zInput && zInput.value) ? parseInt(zInput.value) : 47; let hemi = hInput ? hInput.value : 'N'; let calcN = n; if (hemi === 'S') calcN -= 10000000; let i_w = m_inverse(e, calcN, zone, m_WGS); lat = i_w.lat; lon = i_w.lon; }
-        return [lat, lon];
-    };
-
-    window.topoTriangles.forEach(t => {
-        let ll1 = getLatLng(t.p1.n, t.p1.e); let ll2 = getLatLng(t.p2.n, t.p2.e); let ll3 = getLatLng(t.p3.n, t.p3.e);
-        if (!isNaN(ll1[0]) && !isNaN(ll2[0]) && !isNaN(ll3[0])) {
-            let mapPoly = L.polygon([ll1, ll2, ll3], { color: '#64748b', weight: 1, fillColor: '#94a3b8', fillOpacity: 0.1, interactive: false });
-            window.topoTinLayer.addLayer(mapPoly);
-        }
-    });
-
+    if (window.topoTinLayer && window.leafletMap.hasLayer(window.topoTinLayer)) window.leafletMap.removeLayer(window.topoTinLayer);
+    // Triangle သိန်းချီအတွက် Leaflet polygon တစ်ခုချင်း မဆောက်တော့ဘဲ canvas layer တစ်ခုတည်း (မြင်ရတဲ့ triangle များကိုသာ ဆွဲ၊ TIN ပိတ်ထားလျှင် ဘာမှမတွက်)
+    window.topoTinLayer = new L.TopoTinLayer();
     let chkTin = document.getElementById('tgl_topo_tin');
     if (chkTin && chkTin.checked) { window.topoTinLayer.addTo(window.leafletMap); }
 };
@@ -206,6 +198,7 @@ window.exportTopoDXF = function() {
 
     let txtH = parseFloat(document.getElementById('topo_text_height').value) || 0.5; 
     let yOffset = txtH * 0.7; 
+    let _topoGridParams = null, _topoFootprint = null;   // Sheets/Grid ရွေးချယ်မှု မူလမဟုတ်လျှင် သာ သတ်မှတ်
 
     let minE = Infinity, maxE = -Infinity, minN = Infinity, maxN = -Infinity;
     window.topoPoints.forEach(pt => {
@@ -248,6 +241,15 @@ window.exportTopoDXF = function() {
         // 🔴 [FIX] Grid စာသားနှင့် Title များ ကြီးစေရန် Interval ကို အခြေခံ၍ တွက်ချက်ခြင်း
 let gridTxtH = Math.max(2.5, interval * 0.12); // Grid 50 ဆိုလျှင် Text Size 6 ရမည် 
 
+        // Sheets / Grid ရွေးချယ်မှု (DXF options) - မူလ (Full/Full) မဟုတ်လျှင် grid/title/north arrow ကို dxfPostProcess ထဲမှာ layout ပြီးမှ ထုတ်
+        const _o = window.dxfOpts || {};
+        if (_o.grid !== 'full' || _o.sheets !== 'full') {
+            _topoGridParams = { interval: interval, txtH: gridTxtH, title: mapTitle, minE: minE, maxE: maxE, minN: minN, maxN: maxN };
+            _topoFootprint = window.dxfBuildFootprint({
+                points: window.topoPoints, tris: window.topoTriangles || [],
+                polys: [window.topoBoundaryPolygon || []].concat(window.topoExcludePolygons || []).filter(function(p) { return p.length > 2; })
+            }, interval / 2);
+        } else {
         // 🔴 [FIX] E တန်ဖိုးများကို ထောင်လိုက်ထား၍ ဒသမ ဖြုတ်ခြင်း
         for (let e = startE; e <= gridMaxE; e += interval) {
             let txtE = e + (gridTxtH * 0.3); // မျဉ်းနဲ့ မထပ်အောင် ဘေးနည်းနည်းကပ်သည်
@@ -299,10 +301,11 @@ let gridTxtH = Math.max(2.5, interval * 0.12); // Grid 50 ဆိုလျှင�
         let circleRadius = nSize * 0.1;
         dxf.push(`0\nCIRCLE\n8\nNORTH_ARROW\n10\n${arrBaseE}\n20\n${arrBaseN}\n30\n0.0\n40\n${circleRadius}`);
         dxf.push(`0\nTEXT\n8\nNORTH_ARROW\n10\n${arrTipE}\n20\n${arrTipN + (gridTxtH * 0.8)}\n30\n0.0\n40\n${gridTxtH * 1.5}\n1\nN\n72\n1\n11\n${arrTipE}\n21\n${arrTipN + (gridTxtH * 0.8)}\n31\n0.0\n73\n1`);
+        }
     }
     dxf.push("0\nENDSEC\n0\nEOF");
     
-    let dxfContent = window.dxfPostProcess(dxf.join("\n"), {});     // Extents + initial view + scale bar + north arrow
+    let dxfContent = window.dxfPostProcess(dxf.join("\n"), (_topoGridParams && _topoFootprint) ? { topoGrid: _topoGridParams, footprint: _topoFootprint } : {});     // Extents + initial view + scale bar + north arrow
 
     let fileName = `3D_Topo_Map_With_Grid_${new Date().getTime()}.dxf`;
     let mimeType = 'application/dxf';
@@ -319,7 +322,7 @@ window.toggleTopoLayers = function() {
     if (window.topoPointsLayer) {
         let chkPts = document.getElementById('tgl_topo_pts');
         if (chkPts && chkPts.checked) {
-            if (!window.leafletMap.hasLayer(window.topoPointsLayer)) { window.leafletMap.addLayer(window.topoPointsLayer); }
+            if (!window.leafletMap.hasLayer(window.topoPointsLayer)) { window.leafletMap.addLayer(window.topoPointsLayer); if (typeof window.refreshTopoPointsView === 'function') window.refreshTopoPointsView(); }
             if (!window._prevChkTopoPts && typeof window.zoomToCustomLayer === 'function') window.zoomToCustomLayer(window.topoPointsLayer);
             window._prevChkTopoPts = true;
         } else {
@@ -364,6 +367,7 @@ window.clearTopoData = function() {
     if (!confirm("Are you sure you want to clear all Topo data and map?")) return;
     
     window.topoPoints = []; window.topoTriangles = []; window.topoContours = []; window.topoExcludePolygons = []; window.topoContourTextLayer = null; 
+    window._topoPtsVirt = null; window.topoLLCache = null;   // Point layer / lat-lon cache ရှင်း
     window.volPoints = []; window.volTriangles = []; window.volBoundaryPts = []; window.volSurface2Points = []; window.volSurface2Triangles = [];
     
     if (window.topoPointsLayer) { window.topoPointsLayer.clearLayers(); window.leafletMap.removeLayer(window.topoPointsLayer); }

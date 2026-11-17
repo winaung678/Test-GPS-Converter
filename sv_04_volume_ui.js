@@ -18,8 +18,9 @@ window.volLoadFromTopo = function() {
     }
     
     // Topo ထဲက Data တွေကို Volume ဘက်သို့ ကူးယူခြင်း
-    window.volPoints = JSON.parse(JSON.stringify(window.topoPoints));
-    window.volTriangles = JSON.parse(JSON.stringify(window.topoTriangles));
+    // point/triangle သိန်းချီကို JSON ကူးလျှင် memory ၂ ဆ၊ အချိန်များ - ဖတ်ရုံသာ သုံးသဖြင့် reference ကိုသာ မျှဝေ (Topo ပြန်တွက်လျှင် array အသစ်ဖြစ်၍ ဤ snapshot မထိခိုက်)
+    window.volPoints = window.topoPoints;
+    window.volTriangles = window.topoTriangles;
     
     let statBox = document.getElementById('vol_status');
     statBox.style.display = 'block'; statBox.style.color = '#10b981';
@@ -40,34 +41,9 @@ function volShowPointsOnMap() {
 
     if (!window.masterTopoCanvas) window.masterTopoCanvas = L.canvas({ padding: 0.5 }); 
 
-    let bounds = [];
     let datum = document.getElementById('topo_datum') ? document.getElementById('topo_datum').value : "WGS_LL";
-
-    window.volPoints.forEach(pt => {
-        let lat = pt.n, lon = pt.e; 
-
-        if (datum === 'LOCAL') {
-            lat = (pt.n - (window.localOffsetN || 0)) / 100000;
-            lon = (pt.e - (window.localOffsetE || 0)) / 100000;
-        } else if (datum === "SVY21") { 
-            let r = calc_v2_rev(pt.e, pt.n); lat = r.lat; lon = r.lon; 
-        } else if (datum.startsWith("MM")) {
-            let zone = parseInt(datum.slice(-2)); let r = m_inverse(pt.e, pt.n, zone, m_EVE); 
-            let x = m_llh2xyz(r.lat, r.lon, 0, m_EVE); let w = m_xyz2llh(x.x-m_DX, x.y-m_DY, x.z-m_DZ, m_WGS);
-            lat = w.lat; lon = w.lon;
-        } else if (datum.startsWith("WGS_UTM")) { 
-            let zone = parseInt(datum.slice(-2)); 
-            let i = m_inverse(pt.e, pt.n, zone, m_WGS); lat = i.lat; lon = i.lon; 
-        } else if (datum === "GLOBAL_UTM") {
-            let zInput = document.getElementById('topo_custom_zone'); 
-            let hInput = document.getElementById('topo_custom_hemi');
-            let zone = (zInput && zInput.value) ? parseInt(zInput.value) : 47; 
-            let hemi = hInput ? hInput.value : 'N'; 
-            let calcN = pt.n; if (hemi === 'S') calcN -= 10000000; 
-            let i_w = m_inverse(pt.e, calcN, zone, m_WGS); lat = i_w.lat; lon = i_w.lon;
-        }
-
-        if (!isNaN(lat) && !isNaN(lon)) {
+    const llCache = window.topoBuildLLCache(window.volPoints, window.topoMakeConverter(datum), window.topoDatumKey());
+    const makeMarker = function(pt, lat, lon) {
             let marker = L.circleMarker([lat, lon], { 
                 radius: 4, color: 'transparent', weight: 25, fillColor: '#94a3b8', fillOpacity: 0.8,
                 renderer: window.masterTopoCanvas 
@@ -115,12 +91,10 @@ let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">$
                 }
             });
 
-            window.topoPointsLayer.addLayer(marker);
-            bounds.push([lat, lon]);
-        }
-    });
-
-    if (bounds.length > 0) window.leafletMap.fitBounds(L.latLngBounds(bounds), {padding: [30, 30], maxZoom: 22});
+            return marker;
+    };
+    window.fillPointsLayer(window.volPoints, llCache, makeMarker);   // Point များလျှင် မြင်ရတဲ့ဧရိယာကိုသာ marker ဆောက်
+    if (llCache.valid > 0) window.leafletMap.fitBounds(L.latLngBounds([[llCache.minLat, llCache.minLon], [llCache.maxLat, llCache.maxLon]]), {padding: [30, 30], maxZoom: 22});
     
     if (typeof toggleTopoLayers === 'function') toggleTopoLayers();
 }

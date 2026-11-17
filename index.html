@@ -47,7 +47,7 @@
 
     <div class="hero-section">
         <h1 class="hero-title">GPS CONVERTER: The Ultimate Surveying Guide</h1>
-        <p>Your complete manual for utilizing the 7 main surveying modules and advanced COGO utilities. Designed for civil engineers and professional surveyors.</p>
+        <p>Your complete manual for the 7 main surveying modules and the advanced COGO toolbox &mdash; from coordinate conversion and stakeout to topographic surfaces, earthwork volumes and profile / cross-section drawings. Designed for civil engineers and professional surveyors.</p>
         <a href="app.html" class="launch-btn">🚀 Launch GPS CONVERTER</a>
     </div>
 
@@ -64,13 +64,14 @@
             <p>Designed specifically for projects in Singapore, this tool applies the localized Transverse Mercator projection to eliminate scale distortions. It provides seamless bidirectional conversion between WGS84 (LL) and local SVY21 (NE). Real-time MSL (Mean Sea Level) elevation is supported by utilizing the EGM2008 geoid model integration.</p>
 
             <h3>3. MM2000 Coordinate System (Myanmar)</h3>
-            <p>For surveying tasks in Myanmar, the MM2000 datum is required. This module strictly handles the parameter shifts and projects WGS84 coordinates into the MM2000 local grid (typically Zone 46 or 47). It includes an offline database for EGM96 to calculate precise orthometric heights without internet access.</p>
+            <p>For surveying tasks in Myanmar, the MM2000 datum (Everest 1830 ellipsoid) is required. This module applies the official 3-parameter datum shift (&Delta;X = &minus;246.632 m, &Delta;Y = &minus;784.833 m, &Delta;Z = &minus;276.923 m) and projects the result onto the MM2000 UTM grid (Zone 46 or 47, detected automatically). You can convert in both directions between WGS84 and MM2000, using either Latitude/Longitude or Northing/Easting, and also between MM2000 Latitude/Longitude and MM2000 Northing/Easting within the datum itself.</p>
+            <p><strong>Height matters.</strong> The datum shift is a three-dimensional shift, so the optional <em>WGS84 ellipsoidal height (h)</em> field improves accuracy &mdash; roughly 0.5 cm for every 100 m of height, and up to about 5 cm on high ground. Enter the ellipsoidal height, not the height above mean sea level. In our checks against five published Survey Department GCP stations, Northing and Easting agreed to within 2 cm (most within 1&ndash;2 mm) when the ellipsoidal height was supplied. The geoid separation (N) shown in the map popup helps you relate ellipsoidal heights to MSL heights.</p>
 
             <h3>4. Set Out (Stakeout Navigation)</h3>
             <p>The Set Out module is your digital compass and distance guide. You can import CSV point files or select previously saved Topo points. Once a target point is selected, the application calculates the real-time distance and bearing from your current GPS location to the target, providing visual arrow directions and dynamic distance updates.</p>
 
             <h3>5. COGO (Coordinate Geometry Tools)</h3>
-            <p>The COGO module is an advanced mathematical utility room containing three powerful sub-tools. (See the detailed COGO breakdown below).</p>
+            <p>The COGO module is an advanced utility room containing eight tools: Area, Bearing &amp; Distance, Gradient, Traverse Adjustment, Pile Eccentricity, Topo Surface &amp; Contour, Earthwork / Volume, and Profile &amp; Cross Section. (See the detailed COGO breakdown below).</p>
 
             <h3>6. Site Plan (DXF Viewer)</h3>
             <p>Surveyors no longer need heavy desktop software to view AutoCAD files in the field. This module uses an advanced Canvas Renderer to overlay 2D DXF site plans directly onto the map. You can toggle lines and texts, snap to nodes, and measure distances between DXF points with high accuracy. The map data is saved securely in your browser's IndexedDB for offline use.</p>
@@ -79,7 +80,7 @@
             <p>Documentation is critical. The Survey Camera module captures field photos and automatically stamps them with a real-time GPS watermark. The watermark includes the Project Name, Date, Local Datum (SVY21/MM2000/UTM), Northing, Easting, MSL Elevation, and Compass Heading, ensuring verifiable field evidence.</p>
 
             <h2>Deep Dive: The COGO Utilities</h2>
-            <p>Within the COGO (Module 5) section, we provide three specialized calculation tools for on-the-fly problem-solving.</p>
+            <p>Within the COGO (Module 5) section, we provide specialized tools for on-the-fly problem-solving in the field and for office-style surface work.</p>
 
             <h3>1. Area Calculator</h3>
             <p>Calculate the exact area of a land plot directly in the field. By selecting three or more target points from your uploaded CSV or recorded Topo list, the tool applies the mathematical <strong>Shoelace Formula</strong>. It instantly outputs the area in four distinct units: Square Meters (Sq.M), Square Feet (Sq.Ft), Acres, and Hectares. It also draws a visual polygon over the live map for verification.</p>
@@ -97,6 +98,28 @@
                 <li><strong>Calculate Gradient:</strong> Input your horizontal distance and the starting/ending elevations (Z1 and Z2) to find the exact slope percentage and 1:N ratio.</li>
                 <li><strong>Predict Elevation (Z2):</strong> If you know your starting elevation (Z1), the distance, and the required design gradient (e.g., 2.5%), the app calculates the exact target elevation (Z2) you need to hit.</li>
             </ul>
+
+            <h3>4. Traverse Adjustment</h3>
+            <p>Adjust a <strong>closed traverse</strong> (same start and end control) or an <strong>open traverse</strong> (different start and end control). Enter the control points and the observed points manually or load them from a CSV file.</p>
+
+            <h3>5. Pile Eccentricity</h3>
+            <p>Compare the design centre of a pile with the as-built data, using either one direct centre point or three points measured on the casing edge, and calculate the eccentricity.</p>
+
+            <h3>6. Topo Surface &amp; Contour</h3>
+            <p>Load a point CSV, choose the coordinate system, and build a TIN surface with major and minor contours, optional smoothing and contour labels. You can limit the surface with a manual boundary or exclude areas, view it in 3D, and export a 2D DXF (with coordinate grid and plot frames), a 3D DXF (TIN faces) or a 3D KML for Google Earth.</p>
+            <ul>
+                <li><strong>Large point clouds:</strong> the surface builder has been tested with up to 400,000 points on a desktop computer. Phones have much less memory, so use smaller or thinned datasets on mobile devices.</li>
+                <li><strong>Plot sheets:</strong> choose the plot scale and paper size (A3 / A4). Long or winding sites can be split into numbered sheets with match lines (up to 400 sheets). You can keep only the sheets that contain survey data ("Topo area only"), draw the coordinate grid only on those sheets or only near the surveyed area, and let Auto scale pick the largest scale that fits within the maximum number of sheets you allow.</li>
+            </ul>
+
+            <h3>7. Earthwork / Volume</h3>
+            <p>Calculate cut and fill volumes for one or more boundary areas against a flat level, a variable level or a second surface, with swell and shrinkage factors applied. Saved areas are listed so you can review them together.</p>
+
+            <h3>8. Profile &amp; Cross Section</h3>
+            <p>Draw one or more alignments over the surface and generate longitudinal profiles and cross-sections at the interval and offset you choose. The result can be exported to DXF as plan, profile and cross-section drawings.</p>
+
+            <h2>Jobs &amp; Auto-Save</h2>
+            <p>Your Topo, Volume and Profile / Cross Section work is saved automatically under a <strong>Job name</strong> on your own device, so you can close the app and continue the next day without redrawing anything. Jobs can be renamed, deleted, and exported or imported as a <code>.json</code> file. Because Jobs are stored in your browser or app storage, clearing the site data or uninstalling the app removes them &mdash; export a backup of important Jobs.</p>
 
             <div style="text-align: center; margin-top: 40px; margin-bottom: 20px;">
                 <p style="font-weight: bold; color: var(--label-text); margin-bottom: 15px;">Ready to start your survey?</p>

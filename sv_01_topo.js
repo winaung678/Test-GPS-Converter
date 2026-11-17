@@ -81,16 +81,9 @@ window.showTopoPointsOnMapOnly = function() {
     window.topoPointsLayer = L.layerGroup(); if (window.layerOn('tgl_topo_pts')) window.topoPointsLayer.addTo(window.leafletMap);
     if (!window.masterTopoCanvas) window.masterTopoCanvas = L.canvas({ padding: 0.5, pane: 'topoPane' });
 
-    let bounds = [];
-    window.topoPoints.forEach(pt => {
-        let lat = pt.n, lon = pt.e; 
-        if (datum === 'LOCAL') { lat = (pt.n - window.localOffsetN) / 100000; lon = (pt.e - window.localOffsetE) / 100000; }
-        else if (datum === "SVY21") { let r = calc_v2_rev(pt.e, pt.n); lat = r.lat; lon = r.lon; }
-        else if (datum.startsWith("MM")) { let zone = parseInt(datum.slice(-2)); let r = m_inverse(pt.e, pt.n, zone, m_EVE); let x = m_llh2xyz(r.lat, r.lon, 0, m_EVE); let w = m_xyz2llh(x.x-m_DX, x.y-m_DY, x.z-m_DZ, m_WGS); lat = w.lat; lon = w.lon; }
-        else if (datum.startsWith("WGS_UTM")) { let zone = parseInt(datum.slice(-2)); let i = m_inverse(pt.e, pt.n, zone, m_WGS); lat = i.lat; lon = i.lon; }
-        else if (datum === "GLOBAL_UTM") { let zInput = document.getElementById('topo_custom_zone'); let hInput = document.getElementById('topo_custom_hemi'); let zone = (zInput && zInput.value) ? parseInt(zInput.value) : 47; let hemi = hInput ? hInput.value : 'N'; let calcN = pt.n; if (hemi === 'S') calcN -= 10000000; let i_w = m_inverse(pt.e, calcN, zone, m_WGS); lat = i_w.lat; lon = i_w.lon; }
-
-        if (!isNaN(lat) && !isNaN(lon)) {
+    // Lat/Lon ကို point တစ်ခုကို တစ်ကြိမ်သာ တွက် (cache) - TIN/Point layer နှစ်ခုလုံး ပြန်သုံး
+    const llCache = window.topoBuildLLCache(window.topoPoints, window.topoMakeConverter(datum), window.topoDatumKey());
+    const makeMarker = function(pt, lat, lon) {
             let marker = L.circleMarker([lat, lon], { radius: 4, color: 'transparent', weight: 20, fillColor: '#3b82f6', fillOpacity: 1, renderer: window.masterTopoCanvas });
             marker.bindTooltip(`${window.escHtml(pt.p)}<br>Z: ${pt.z.toFixed(3)}`, { direction: 'top', className: 'pt-tooltip' });
             
@@ -128,10 +121,11 @@ let popupHtml = `<div style="text-align:center; line-height:1.4; padding:2px;">$
                     L.popup().setLatLng(e.latlng).setContent(popupHtml).openOn(window.leafletMap);
                 }
             });
-            window.topoPointsLayer.addLayer(marker); bounds.push([lat, lon]);
-        }
-    });
-    if (bounds.length > 0) window.leafletMap.fitBounds(L.latLngBounds(bounds), {padding: [30, 30], maxZoom: 22});
+            return marker;
+    };
+    // Point ၈,၀၀၀ အောက် = marker အကုန် (မူလအတိုင်း)၊ ပိုများလျှင် မြင်ရတဲ့ဧရိယာက point များကိုသာ ဆောက် (pan/zoom ပြီးတိုင်း refresh)
+    window.fillPointsLayer(window.topoPoints, llCache, makeMarker);
+    if (llCache.valid > 0) window.leafletMap.fitBounds(L.latLngBounds([[llCache.minLat, llCache.minLon], [llCache.maxLat, llCache.maxLon]]), {padding: [30, 30], maxZoom: 22});
 };
 
 window.toggleExcludeDrawMode = function() {

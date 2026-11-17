@@ -168,7 +168,7 @@
     }
     function step(name, fn) { try { fn(); } catch (e) { console.warn('[job] restore step failed:', name, e); } }
 
-    function restoreData(d) {
+    async function restoreData(d) {
         resetAll();
         var t = d.topo || {}, v = d.vol || {}, p = d.prof || {};
         step('ui', function () { applyUI(d.ui); if (typeof W.toggleTopoUI === 'function') W.toggleTopoUI(); if (typeof W.toggleTopoBoundary === 'function') W.toggleTopoBoundary(); });
@@ -184,7 +184,7 @@
             step('topo boundary', function () { W.updateBoundaryDrawUI(true); });
             var st = $('topo_status');
             if (st) { st.style.display = 'block'; st.style.color = '#10b981'; st.innerText = '\u2705 Job restored: ' + W.topoPoints.length + ' points.'; }
-            if (t.generated) step('topo surface', function () { W.processTopoSurface(); });
+            if (t.generated) { try { await W.processTopoSurface(); } catch (e) { console.warn('[job] restore step failed: topo surface', e); } }
             step('labels', function () { if (typeof W.renderLabelLines === 'function') W.renderLabelLines(); if (typeof W.refreshContourLabels === 'function') W.refreshContourLabels(); });
         }
 
@@ -292,7 +292,7 @@
             if (!rec) { toast('Job not found'); return false; }
             return dbGetMeta(id).then(function (meta) {
                 restoring = true;
-                try { restoreData(rec.data); } catch (e) { console.warn('[job] restore', e); }
+                return Promise.resolve().then(function () { return restoreData(rec.data); }).catch(function (e) { console.warn('[job] restore', e); }).then(function () {
                 active = { id: id, name: meta ? meta.name : 'Job', created: meta ? meta.created : Date.now(), pts: W.topoPoints ? W.topoPoints.length : 0 };
                 restoring = false; suppressAuto = false;
                 lastSig = sig();
@@ -300,6 +300,7 @@
                 setStatus('\u2713 Opened'); updateBars();
                 toast('\uD83D\uDCC1 Opened: ' + active.name);
                 return true;
+                });
             });
         }).catch(function (e) { restoring = false; console.warn('[job] open failed', e); toast('\u26A0 Could not open job'); return false; });
     }

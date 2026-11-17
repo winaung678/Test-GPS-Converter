@@ -151,8 +151,8 @@ window.view3DSurface = function() {
     };
 
     // (၂) ဘေးဘောင် နံရံများ (Skirt / Walls) 
-    let minZ = Math.min(...top_z); 
-    let maxZ = Math.max(...top_z);
+    let minZ = Infinity, maxZ = -Infinity;   // Math.min(...array) က point ~၁ သိန်းကျော်ရင် stack ကျ - loop သုံး
+    for (let zi = 0; zi < top_z.length; zi++) { const zv = top_z[zi]; if (zv < minZ) minZ = zv; if (zv > maxZ) maxZ = zv; }
     let zRange = maxZ - minZ; 
     let baseZ = minZ - (zRange * 0.15); 
     if (zRange === 0) baseZ = minZ - 5; 
